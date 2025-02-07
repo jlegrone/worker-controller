@@ -1,7 +1,7 @@
 apiVersion: temporal.io/v1alpha1
 kind: TemporalWorker
 metadata:
-  name: demo
+  name: helloworld
   labels:
     app.kubernetes.io/name: hello-world-worker
     app.kubernetes.io/instance: demo
@@ -37,7 +37,7 @@ spec:
     spec:
       containers:
         - name: main
-          image: worker
+          image: helloworld
           readinessProbe:
             httpGet:
               port: 8080

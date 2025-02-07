@@ -9,7 +9,7 @@ webhooks:
   clientConfig:
     service:
       name: webhook-service
-      namespace: temporal-system
+      namespace: system
       path: /mutate-temporal-io-temporal-io-v1alpha1-temporalworker
   failurePolicy: Fail
   name: mtemporalworker.kb.io

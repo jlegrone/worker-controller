@@ -1,0 +1,158 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #f0f8ff;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.container {
+    text-align: center;
+    margin: 20px;
+    padding: 20px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    width: 90%;
+    max-width: 600px;
+    margin: 10px auto;
+}
+
+#egg-form {
+    margin: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+#tamagotchi-display {
+    display: none;
+}
+
+.stats {
+    margin: 20px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+}
+
+.actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 10px;
+}
+
+button {
+    padding: 10px 20px;
+    margin: 5px;
+    border: none;
+    border-radius: 5px;
+    background-color: #4CAF50;
+    color: white;
+    cursor: pointer;
+    min-width: 120px;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+.tamagotchi-image {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    margin: 20px auto;
+}
+
+.egg-image {
+    width: 100%;
+    max-width: 150px;
+    height: auto;
+    margin-bottom: 10px;
+}
+
+.stat-row {
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+    gap: 10px;
+}
+
+.stat-row label {
+    min-width: 100px;
+}
+
+.stat-bar-container {
+    background: #eee;
+    width: 200px;
+    height: 20px;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.stat-bar {
+    height: 100%;
+    color: white;
+    text-align: center;
+    line-height: 20px;
+    transition: width 0.3s ease;
+}
+
+.happiness-bar { background-color: #53af4c; }
+.hunger-bar { background-color: #ffa600; }
+.clean-bar { background-color: #2196F3; }
+.energy-bar { background-color: #7f36f4; }
+
+.cancel-button {
+    background-color: #808080;
+}
+
+.cancel-button:hover {
+    background-color: #666666;
+}
+
+.error-message {
+    color: #000000;
+    background-color: #ffebeb;
+    border: 2px solid #ff4444;
+    border-radius: 4px;
+    margin: 10px 0;
+    min-height: 20px;
+    text-align: center;
+    padding: 8px;
+}
+
+.error-message:empty {
+    display: none;
+}
+
+.deceased .stats {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.deceased .actions {
+    display: none;
+}
+
+.memorial {
+    margin: 20px;
+    padding: 15px;
+    border: 2px solid #666;
+    border-radius: 8px;
+    background-color: #f5f5f5;
+    font-style: italic;
+    text-align: center;
+}
+
+.memorial p {
+    margin: 8px 0;
+    line-height: 1.4;
+}
