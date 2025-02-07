@@ -5,6 +5,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -30,7 +31,7 @@ func setActivityTimeout(ctx workflow.Context, d time.Duration) workflow.Context 
 	})
 }
 
-func newClient(hostPort, namespace, buildID string) (c client.Client, stopFunc func()) {
+func newClient(hostPort, namespace, buildID, tlsKeyFile, tlsCertFile string) (c client.Client, stopFunc func()) {
 	l, stopFunc := configureObservability(buildID)
 
 	promScope, err := newPrometheusScope(l, prometheus.Configuration{
@@ -38,6 +39,11 @@ func newClient(hostPort, namespace, buildID string) (c client.Client, stopFunc f
 		HandlerPath:   "/metrics",
 		TimerType:     "histogram",
 	})
+	if err != nil {
+		panic(err)
+	}
+
+	cert, err := tls.LoadX509KeyPair(tlsCertFile, tlsKeyFile)
 	if err != nil {
 		panic(err)
 	}
@@ -54,6 +60,11 @@ func newClient(hostPort, namespace, buildID string) (c client.Client, stopFunc f
 			}),
 		},
 		MetricsHandler: sdktally.NewMetricsHandler(promScope),
+		ConnectionOptions: client.ConnectionOptions{
+			TLS: &tls.Config{
+				Certificates: []tls.Certificate{cert},
+			},
+		},
 	})
 	if err != nil {
 		panic(err)
@@ -100,8 +111,8 @@ func configureObservability(buildID string) (l log.Logger, stopFunc func()) {
 	})))
 
 	return l, func() {
-		tracer.Stop()
-		profiler.Stop()
+		//tracer.Stop()
+		//profiler.Stop()
 		// Wait a couple seconds before shutting down to ensure metrics etc have been flushed.
 		time.Sleep(2 * time.Second)
 	}

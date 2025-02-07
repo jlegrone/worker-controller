@@ -38,4 +38,5 @@ func GetSubject(ctx context.Context) (string, error) {
 func Sleep(ctx context.Context, seconds uint) error {
 	time.Sleep(time.Duration(seconds) * time.Second)
 	return nil
+	//return temporal.NewNonRetryableApplicationError("oops", "", nil)
 }
