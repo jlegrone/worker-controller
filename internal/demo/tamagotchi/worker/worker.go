@@ -16,7 +16,7 @@ type TamagotchiState struct {
 	Energy       int            `json:"energy"`
 	Sleeping     bool           `json:"sleeping"`
 	Deceased     *time.Time     `json:"deceased,omitempty"`
-	CauseOfDeath *DeathCause    `json:"causeOfDeath,omitempty"`
+	CauseOfDeath *CauseOfDeath  `json:"causeOfDeath,omitempty"`
 	Epitaph      string         `json:"epitaph,omitempty"`
 	FoodStats    map[string]int `json:"foodStats"`
 	PlayStats    map[string]int `json:"playStats"`
@@ -27,25 +27,33 @@ type TamagotchiRequest struct {
 	State *TamagotchiState `json:"state"`
 }
 
-type DeathCause string
+type CauseOfDeath string
 
 const (
-	DeathCauseOldAge     DeathCause = "old age"
-	DeathCauseStarvation DeathCause = "starvation"
-	DeathCauseExhaustion DeathCause = "exhaustion"
-	DeathCauseBoredom    DeathCause = "boredom"
-	DeathCauseDirtiness  DeathCause = "dirtiness"
-	DeathCauseFatigue    DeathCause = "fatigue"
-	DeathCauseIllness    DeathCause = "illness"
+	CauseOfDeathOldAge     CauseOfDeath = "old age"
+	CauseOfDeathStarvation CauseOfDeath = "starvation"
+	CauseOfDeathExhaustion CauseOfDeath = "exhaustion"
+	CauseOfDeathBoredom    CauseOfDeath = "boredom"
+	CauseOfDeathDirtiness  CauseOfDeath = "dirtiness"
+	CauseOfDeathFatigue    CauseOfDeath = "fatigue"
+	CauseOfDeathIllness    CauseOfDeath = "illness"
 )
 
-type Death struct {
-	Cause DeathCause `json:"cause"`
+func (c CauseOfDeath) Error() string {
+	return string(c)
 }
 
-func (d Death) Error() string {
-	return string(d.Cause)
+type FeedRequest struct {
+	Food string `json:"food"`
 }
+
+type PlayRequest struct {
+	Activity string `json:"activity"`
+}
+
+type SleepRequest struct{}
+
+type BatheRequest struct{}
 
 func Tamagotchi(ctx workflow.Context, req *TamagotchiRequest) (*TamagotchiState, error) {
 	if req == nil {
@@ -112,12 +120,12 @@ func Tamagotchi(ctx workflow.Context, req *TamagotchiRequest) (*TamagotchiState,
 		// Wait for an update
 		ch.Receive(ctx, nil)
 		if err := checkup(ctx, req); err != nil {
-			if death, ok := err.(*Death); ok {
+			if cause, ok := err.(CauseOfDeath); ok {
 				timeOfDeath := workflow.Now(ctx)
 				req.State.Deceased = &timeOfDeath
-				req.State.CauseOfDeath = &death.Cause
+				req.State.CauseOfDeath = &cause
 				req.State.Epitaph = generateEpitaph(req.State)
-				req.State.log(ctx, "Tamagotchi has died", "cause", death.Cause)
+				req.State.log(ctx, "Tamagotchi has died", "cause", cause)
 				return req.State, nil
 			}
 			return nil, err
@@ -136,21 +144,21 @@ func checkup(ctx workflow.Context, req *TamagotchiRequest) error {
 	}
 
 	if req.State.Fun == 0 {
-		return &Death{Cause: DeathCauseBoredom}
+		return CauseOfDeathBoredom
 	}
 
 	if req.State.Clean == 0 {
-		return &Death{Cause: DeathCauseDirtiness}
+		return CauseOfDeathDirtiness
 	}
 
 	if req.State.Hunger == 0 {
-		return &Death{Cause: DeathCauseStarvation}
+		return CauseOfDeathStarvation
 	}
 
 	// TODO(jlegrone): Maybe lift the maximum life expectancy :)
 	if workflow.Now(ctx).After(req.State.Hatched.Add(24 * time.Hour)) {
 		req.State.log(ctx, "Tamagotchi has lived for 24 hours")
-		return &Death{Cause: DeathCauseOldAge}
+		return CauseOfDeathOldAge
 	}
 
 	return nil
@@ -163,10 +171,6 @@ type statsEffect struct {
 	energy int
 	fun    int
 	clean  int
-}
-
-type FeedRequest struct {
-	Food string `json:"food"`
 }
 
 func getFoodEffect(food string) (statsEffect, bool) {
@@ -232,8 +236,6 @@ func (s *TamagotchiState) handleFeed(ctx workflow.Context, ch workflow.SendChann
 	})
 }
 
-type SleepRequest struct{}
-
 func (s *TamagotchiState) handleSleep(ctx workflow.Context, ch workflow.SendChannel) {
 	workflow.SetUpdateHandlerWithOptions(ctx, "sleep", func(ctx workflow.Context, req *SleepRequest) error {
 		s.log(ctx, "Putting tamagotchi to sleep")
@@ -251,10 +253,6 @@ func (s *TamagotchiState) handleSleep(ctx workflow.Context, ch workflow.SendChan
 			return nil
 		},
 	})
-}
-
-type PlayRequest struct {
-	Activity string `json:"activity"`
 }
 
 func getPlayEffect(activity string) (statsEffect, bool) {
@@ -318,8 +316,6 @@ func (s *TamagotchiState) handlePlay(ctx workflow.Context, ch workflow.SendChann
 		},
 	})
 }
-
-type BatheRequest struct{}
 
 func (s *TamagotchiState) handleBathe(ctx workflow.Context, ch workflow.SendChannel) {
 	workflow.SetUpdateHandlerWithOptions(ctx, "bathe", func(ctx workflow.Context, req *BatheRequest) error {
