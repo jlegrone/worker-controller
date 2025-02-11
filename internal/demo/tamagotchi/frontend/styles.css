@@ -1,0 +1,244 @@
+body {
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background-color: #98afc7;
+    background-image: linear-gradient(45deg, #98afc7 25%, #89a1b8 25%, #89a1b8 50%, #98afc7 50%, #98afc7 75%, #89a1b8 75%, #89a1b8 100%);
+    background-size: 20px 20px;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.container {
+    text-align: center;
+    padding: 15px;
+    background-color: #edffe9;
+    border: 4px solid #000;
+    border-radius: 0;
+    box-shadow: 
+        4px 4px 0 #000,
+        -4px -4px 0 #fff;
+    width: 90%;
+    max-width: 600px;
+    margin: 10px auto;
+}
+
+#egg-form {
+    margin: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+#tamagotchi-display {
+    display: none;
+}
+
+.stats {
+    margin: 20px auto;
+    padding: 10px;
+    border: 3px solid #000;
+    border-radius: 0;
+    background-color: #c8c8c8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 320px;
+}
+
+.actions {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 5px;
+}
+
+button {
+    padding: 8px 15px;
+    margin: 3px;
+    border: 3px solid #000;
+    border-radius: 0;
+    background-color: #ff6b6b;
+    box-shadow: 
+        3px 3px 0 #000,
+        -3px -3px 0 #fff;
+    color: white;
+    cursor: pointer;
+    min-width: 100px;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+    font-size: 14px;
+}
+
+button:hover {
+    background-color: #ff8787;
+    transform: translate(1px, 1px);
+    box-shadow: 
+        2px 2px 0 #000,
+        -2px -2px 0 #fff;
+}
+
+.tamagotchi-image {
+    width: 100%;
+    max-width: 200px;
+    height: auto;
+    margin: 20px auto;
+    position: relative;
+    padding: 20px;
+    border: 4px solid #000;
+    background: #fff;
+    box-shadow: 
+        4px 4px 0 #000,
+        -4px -4px 0 #fff;
+}
+
+.tamagotchi-image::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+    border: 4px solid #000;
+    background: #d0d0d0;
+    z-index: -1;
+}
+
+.tamagotchi-image::after {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    border: 4px solid #000;
+    z-index: -2;
+}
+
+.egg-image {
+    width: 100%;
+    max-width: 150px;
+    height: auto;
+    margin-bottom: 10px;
+}
+
+.stat-row {
+    display: flex;
+    align-items: center;
+    margin: 8px 0;
+    gap: 10px;
+}
+
+.stat-row label {
+    min-width: 100px;
+}
+
+.stat-bar-container {
+    background: #fff;
+    width: 150px;
+    height: 20px;
+    border: 2px solid #000;
+    border-radius: 0;
+    overflow: hidden;
+}
+
+.stat-bar {
+    height: 100%;
+    color: white;
+    text-align: center;
+    line-height: 20px;
+    transition: width 0.3s ease-out;
+}
+
+.happiness-bar { background-color: #ff6b6b; }
+.hunger-bar { background-color: #ffd93d; }
+.clean-bar { background-color: #4dabf7; }
+.energy-bar { background-color: #845ef7; }
+
+.cancel-button {
+    background-color: #808080;
+}
+
+.cancel-button:hover {
+    background-color: #666666;
+}
+
+.error-message {
+    color: #000000;
+    background-color: #ff8787;
+    border: 3px solid #000;
+    border-radius: 0;
+    box-shadow: 
+        3px 3px 0 #000,
+        -3px -3px 0 #fff;
+    margin: 10px 0;
+    min-height: 20px;
+    text-align: center;
+    padding: 8px;
+}
+
+.error-message:empty {
+    display: none;
+}
+
+.deceased .stats {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.deceased .actions {
+    display: none;
+}
+
+.memorial {
+    margin: 20px;
+    padding: 15px;
+    border: 3px solid #000;
+    border-radius: 0;
+    background-color: #e9ecef;
+    box-shadow: 
+        3px 3px 0 #000,
+        -3px -3px 0 #fff;
+    font-style: italic;
+    text-align: center;
+}
+
+.memorial p {
+    margin: 8px 0;
+    line-height: 1.4;
+}
+
+@media screen and (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+    
+    .container {
+        padding: 10px;
+        margin: 5px auto;
+    }
+    
+    .stats {
+        margin: 10px auto;
+        padding: 8px;
+    }
+    
+    .stat-row {
+        gap: 5px;
+    }
+    
+    .stat-row label {
+        min-width: 80px;
+        font-size: 14px;
+    }
+    
+    .tamagotchi-image {
+        max-width: 150px;
+        padding: 15px;
+    }
+}
