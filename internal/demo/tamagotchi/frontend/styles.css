@@ -3,7 +3,9 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    background-color: #f0f8ff;
+    background-color: #98afc7;
+    background-image: linear-gradient(45deg, #98afc7 25%, #89a1b8 25%, #89a1b8 50%, #98afc7 50%, #98afc7 75%, #89a1b8 75%, #89a1b8 100%);
+    background-size: 20px 20px;
     min-height: 100vh;
     margin: 0;
     padding: 20px;
@@ -12,11 +14,13 @@ body {
 
 .container {
     text-align: center;
-    margin: 20px;
-    padding: 20px;
-    background-color: white;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    padding: 15px;
+    background-color: #edffe9;
+    border: 4px solid #000;
+    border-radius: 0;
+    box-shadow: 
+        4px 4px 0 #000,
+        -4px -4px 0 #fff;
     width: 90%;
     max-width: 600px;
     margin: 10px auto;
@@ -35,33 +39,48 @@ body {
 }
 
 .stats {
-    margin: 20px;
+    margin: 20px auto;
     padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
+    border: 3px solid #000;
+    border-radius: 0;
+    background-color: #c8c8c8;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 320px;
 }
 
 .actions {
     display: flex;
-    gap: 10px;
+    gap: 5px;
     justify-content: center;
     flex-wrap: wrap;
-    padding: 10px;
+    padding: 5px;
 }
 
 button {
-    padding: 10px 20px;
-    margin: 5px;
-    border: none;
-    border-radius: 5px;
-    background-color: #4CAF50;
+    padding: 8px 15px;
+    margin: 3px;
+    border: 3px solid #000;
+    border-radius: 0;
+    background-color: #ff6b6b;
+    box-shadow: 
+        3px 3px 0 #000,
+        -3px -3px 0 #fff;
     color: white;
     cursor: pointer;
-    min-width: 120px;
+    min-width: 100px;
+    font-family: 'Courier New', monospace;
+    text-transform: uppercase;
+    font-size: 14px;
 }
 
 button:hover {
-    background-color: #45a049;
+    background-color: #ff8787;
+    transform: translate(1px, 1px);
+    box-shadow: 
+        2px 2px 0 #000,
+        -2px -2px 0 #fff;
 }
 
 .tamagotchi-image {
@@ -69,6 +88,36 @@ button:hover {
     max-width: 200px;
     height: auto;
     margin: 20px auto;
+    position: relative;
+    padding: 20px;
+    border: 4px solid #000;
+    background: #fff;
+    box-shadow: 
+        4px 4px 0 #000,
+        -4px -4px 0 #fff;
+}
+
+.tamagotchi-image::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+    border: 4px solid #000;
+    background: #d0d0d0;
+    z-index: -1;
+}
+
+.tamagotchi-image::after {
+    content: '';
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    border: 4px solid #000;
+    z-index: -2;
 }
 
 .egg-image {
@@ -90,10 +139,11 @@ button:hover {
 }
 
 .stat-bar-container {
-    background: #eee;
-    width: 200px;
+    background: #fff;
+    width: 150px;
     height: 20px;
-    border-radius: 10px;
+    border: 2px solid #000;
+    border-radius: 0;
     overflow: hidden;
 }
 
@@ -102,13 +152,13 @@ button:hover {
     color: white;
     text-align: center;
     line-height: 20px;
-    transition: width 0.3s ease;
+    transition: width 0.3s ease-out;
 }
 
-.happiness-bar { background-color: #53af4c; }
-.hunger-bar { background-color: #ffa600; }
-.clean-bar { background-color: #2196F3; }
-.energy-bar { background-color: #7f36f4; }
+.happiness-bar { background-color: #ff6b6b; }
+.hunger-bar { background-color: #ffd93d; }
+.clean-bar { background-color: #4dabf7; }
+.energy-bar { background-color: #845ef7; }
 
 .cancel-button {
     background-color: #808080;
@@ -120,9 +170,12 @@ button:hover {
 
 .error-message {
     color: #000000;
-    background-color: #ffebeb;
-    border: 2px solid #ff4444;
-    border-radius: 4px;
+    background-color: #ff8787;
+    border: 3px solid #000;
+    border-radius: 0;
+    box-shadow: 
+        3px 3px 0 #000,
+        -3px -3px 0 #fff;
     margin: 10px 0;
     min-height: 20px;
     text-align: center;
@@ -145,9 +198,12 @@ button:hover {
 .memorial {
     margin: 20px;
     padding: 15px;
-    border: 2px solid #666;
-    border-radius: 8px;
-    background-color: #f5f5f5;
+    border: 3px solid #000;
+    border-radius: 0;
+    background-color: #e9ecef;
+    box-shadow: 
+        3px 3px 0 #000,
+        -3px -3px 0 #fff;
     font-style: italic;
     text-align: center;
 }
@@ -155,4 +211,34 @@ button:hover {
 .memorial p {
     margin: 8px 0;
     line-height: 1.4;
+}
+
+@media screen and (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+    
+    .container {
+        padding: 10px;
+        margin: 5px auto;
+    }
+    
+    .stats {
+        margin: 10px auto;
+        padding: 8px;
+    }
+    
+    .stat-row {
+        gap: 5px;
+    }
+    
+    .stat-row label {
+        min-width: 80px;
+        font-size: 14px;
+    }
+    
+    .tamagotchi-image {
+        max-width: 150px;
+        padding: 15px;
+    }
 }
