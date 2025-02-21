@@ -23,7 +23,7 @@ type WorkerOptions struct {
 	// namespace.
 	//
 	// +optional
-	DeploymentSeries string `json:"series"`
+	DeploymentSeries string `json:"series"` // TODO(carlydf): change to DeploymentName
 }
 
 // TemporalWorkerSpec defines the desired state of TemporalWorker
@@ -34,7 +34,7 @@ type TemporalWorkerSpec struct {
 	// zero and not specified. Defaults to 1.
 	// TODO(jlegrone): Configure min replicas per thousand workflow/activity tasks?
 	// +optional
-	Replicas *int32 `json:"replicas,omitempty" protobuf:"varint,1,opt,name=replicas"`
+	Replicas *int32 `json:"replicas,omitempty" protobuf:"varint,1,opt,name=replicas"` // TODO(carlydf) delete comment: implements scale subresource -> compatible with autoscalers such as keda
 
 	// Label selector for pods. Existing ReplicaSets whose pods are
 	// selected by this will be the ones affected by this deployment.

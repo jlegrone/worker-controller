@@ -258,6 +258,7 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	}
 
 	// List deployments in Temporal
+	// TODO(carlydf): temporalClient.DescribeWorkerDeployment() --> list of deployment versions summaries (version id + drainage status) in that deployment
 	deploymentList, err := temporalClient.ListDeployments(ctx, &workflowservice.ListDeploymentsRequest{
 		Namespace:     workerDeploy.Spec.WorkerOptions.TemporalNamespace,
 		SeriesName:    workerDeploy.Spec.WorkerOptions.DeploymentSeries,
@@ -279,6 +280,7 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 			defaultBuildID = deployment.GetDeployment().GetBuildId()
 
 			// When a deployment is the default it will always be reachable, so skip querying the API.
+			// TODO(carlydf): change to drained semantics
 			_ = versions.addDeploymentReachability(deployment.GetDeployment().GetBuildId(), enums.DEPLOYMENT_REACHABILITY_REACHABLE)
 
 			// Check if the build ID was promoted to default out of band of the controller (eg. via the Temporal CLI)
@@ -289,7 +291,7 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 			if err != nil {
 				return nil, fmt.Errorf("unable to describe default deployment for build ID %q: %w", deployment.GetDeployment().GetBuildId(), err)
 			}
-			// TODO(jlegrone): check for controller identity in metadata
+			// TODO(jlegrone): check for controller identity in metadata - if it was set by another client, switch to manual mode
 			desc.GetDeploymentInfo().GetMetadata()
 		} else {
 			// Get reachability status
@@ -318,6 +320,7 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 			}
 
 			// TODO(jlegrone): Validate that task queues from current default version are still present in this new version.
+			// Temporal handles this (write note)
 			for _, tq := range deploymentInfo.GetDeploymentInfo().GetTaskQueueInfos() {
 				// Keep track of which task queues this version of the worker is polling on
 				if tq.GetType() != enums.TASK_QUEUE_TYPE_WORKFLOW {
@@ -374,6 +377,7 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	//	}
 	//}
 
+	// reconcile deployments that exist in k8s but not in temporal. (scaled to 0 so they're not polling)
 	var deprecatedVersions []*temporaliov1alpha1.VersionedDeployment
 	for _, buildID := range deployedBuildIDs {
 		switch buildID {

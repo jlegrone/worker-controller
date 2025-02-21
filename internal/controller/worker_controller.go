@@ -52,6 +52,8 @@ type TemporalWorkerReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
+// TODO(carlydf) delete note: runs every interval or every time a watched resource changes. (listed above)
+// TODO(carlydf): add watching of temporal connection custom resource (may have issue)
 func (r *TemporalWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 	l.Info("Running Reconcile loop")

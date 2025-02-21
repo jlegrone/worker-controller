@@ -98,7 +98,7 @@ func (r *TemporalWorkerReconciler) generatePlan(
 			return nil, err
 		}
 
-		switch versionSet.Reachability {
+		switch versionSet.Reachability { // draining and drained + timestamps of when it drained
 		case temporaliov1alpha1.ReachabilityStatusReachable:
 			// Scale up reachable deployments
 			if d.Spec.Replicas != nil && *d.Spec.Replicas != *w.Spec.Replicas {
@@ -119,7 +119,7 @@ func (r *TemporalWorkerReconciler) generatePlan(
 			if d.Spec.Replicas != nil && *d.Spec.Replicas != closedOnlyReplicas {
 				plan.ScaleDeployments[versionSet.Deployment] = closedOnlyReplicas
 			}
-		case temporaliov1alpha1.ReachabilityStatusNotRegistered:
+		case temporaliov1alpha1.ReachabilityStatusNotRegistered: // TODO(carlydf): add time based deletion option here
 			// Delete unregistered deployments
 			plan.DeleteDeployments = append(plan.DeleteDeployments, d)
 		}

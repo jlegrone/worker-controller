@@ -24,7 +24,7 @@ import (
 )
 
 func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logger, temporalClient workflowservice.WorkflowServiceClient, p *plan) error {
-	// Create deployment
+	// Create deployment for current target version
 	if p.CreateDeployment != nil {
 		l.Info("creating deployment", "deployment", p.CreateDeployment)
 		if err := r.Create(ctx, p.CreateDeployment); err != nil {
@@ -90,6 +90,8 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 	if vcfg := p.UpdateVersionConfig; vcfg != nil {
 		if vcfg.setDefault {
 			l.Info("registering new default version", "buildID", vcfg.buildID)
+			// TODO(carlydf) replace: temporalClient.SetWorkerDeploymentCurrentVersion()
+			// temporalClient.UpdateWorkerDeploymentVersionMetadata() // would be cool to do atomically
 			if _, err := temporalClient.SetCurrentDeployment(ctx, &workflowservice.SetCurrentDeploymentRequest{
 				Namespace: p.TemporalNamespace,
 				Deployment: &deployment.Deployment{
@@ -97,6 +99,8 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 					BuildId:    vcfg.buildID,
 				},
 				Identity: "temporal-worker-controller", // TODO(jlegrone): Set this to a unique identity, should match metadata.
+				// could use this to add information about which k8s resource initiated the last write to the deployment, so ctrlr can detect conflicts between worker deployments
+				// if default DeploymentName = <worker_name>?<k8s_namespace> then there would never be two workers with the same DeploymentName (except in case of same ns and multiple clusters)
 				UpdateMetadata: &deployment.UpdateDeploymentMetadata{
 					UpsertEntries: map[string]*common.Payload{
 						// TODO(jlegrone): Add controller identity
@@ -109,6 +113,7 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 		} else if ramp := vcfg.rampPercentage; ramp > 0 {
 			// Apply ramp
 			l.Info("applying ramp", "buildID", p.UpdateVersionConfig.buildID, "percentage", p.UpdateVersionConfig.rampPercentage)
+			// temporalClient.SetWorkerDeploymentRampingVersion()
 			return fmt.Errorf("ramp not implemented")
 		}
 	}
