@@ -77,9 +77,9 @@ func (r *TemporalWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Reque
 		l.Error(err, "")
 		return ctrl.Result{}, err
 	}
-	// Set a default deployment series name
-	if workerDeploy.Spec.WorkerOptions.DeploymentSeries == "" {
-		err := fmt.Errorf("DeploymentSeries must be set")
+	// Set a default deployment name
+	if workerDeploy.Spec.WorkerOptions.DeploymentName == "" {
+		err := fmt.Errorf("DeploymentName must be set")
 		l.Error(err, "")
 		return ctrl.Result{}, err
 	}

@@ -19,11 +19,11 @@ type WorkerOptions struct {
 	// Assign a deployment series name to this worker. Different versions of the same worker
 	// service/application are linked together by sharing a series name.
 	//
-	// If not set, then the deployment series will default to the worker's name and Kubernetes
-	// namespace.
+	// If not set, then the deployment name will default to the worker's name and Kubernetes
+	// namespace. // TODO(carlydf): change to DeploymentName
 	//
 	// +optional
-	DeploymentSeries string `json:"series"` // TODO(carlydf): change to DeploymentName
+	DeploymentName string `json:"name"`
 }
 
 // TemporalWorkerSpec defines the desired state of TemporalWorker
@@ -94,23 +94,23 @@ type TemporalWorkerStatus struct {
 	// so it’s generally not a good idea to read from the status of the root object.
 	// Instead, you should reconstruct it every run.
 
-	// TargetVersion is the desired next version. If the deployment is nil,
+	// TargetVersion is the desired next version. If the deployment version is nil,
 	// then the controller should create it. If not nil, the controller should
-	// wait for it to become healthy and then move it to the DefaultVersionSet.
-	TargetVersion *VersionedDeployment `json:"targetVersion"`
+	// wait for it to become healthy and then move it to the DefaultVersionSet. // TODO(carlydf): see what makes sense instead of DefaultVersionSet
+	TargetVersion *DeploymentVersion `json:"targetVersion"`
 
-	// DefaultVersion is the deployment that is currently registered with
+	// DefaultVersion is the deployment version that is currently registered with
 	// Temporal as the default. This must never be nil.
 	//
 	// RampPercentage should always be nil for this version.
-	DefaultVersion *VersionedDeployment `json:"defaultVersion"`
+	DefaultVersion *DeploymentVersion `json:"defaultVersion"`
 
-	// DeprecatedVersions are deployments that are no longer the default. Any
-	// deployments that are unreachable should be deleted by the controller.
+	// DeprecatedVersions are deployment versions that are no longer the default. Any
+	// deployment versions that are unreachable should be deleted by the controller.
 	//
 	// RampPercentage should only be set for DeprecatedVersions when rollout
 	// strategy is set to manual.
-	DeprecatedVersions []*VersionedDeployment `json:"deprecatedVersions,omitempty"`
+	DeprecatedVersions []*DeploymentVersion `json:"deprecatedVersions,omitempty"`
 
 	// TODO(jlegrone): Add description
 	VersionConflictToken []byte `json:"versionConflictToken"`
@@ -147,18 +147,16 @@ type TaskQueue struct {
 	Name string `json:"name"`
 }
 
-type VersionedDeployment struct {
-	// Healthy indicates whether the deployment is healthy.
+type DeploymentVersion struct {
+	// Healthy indicates whether the deployment version is healthy.
 	// +optional
 	HealthySince *metav1.Time `json:"healthySince"`
 
-	// The build ID associated with the deployment.
+	// The build ID associated with the deployment version.
 	BuildID string `json:"buildID"`
 
-	// Other compatible build IDs that redirect to this deployment.
-	CompatibleBuildIDs []string `json:"compatibleBuildIDs,omitempty"`
-
-	// Reachability indicates whether workers in this version set may
+	// TODO(carlydf): Convert to drainage status / drainage info
+	// Reachability indicates whether workers in this version may
 	// be eligible to receive tasks from the Temporal server.
 	Reachability ReachabilityStatus `json:"reachability"`
 
@@ -168,14 +166,14 @@ type VersionedDeployment struct {
 	// Acceptable range is [0,100].
 	RampPercentage *uint8 `json:"rampPercentage,omitempty"`
 
-	// A pointer to the version set's managed deployment.
+	// A pointer to the version's managed k8s deployment.
 	// +optional
 	Deployment *v1.ObjectReference `json:"deployment"`
 
 	// TaskQueues is a list of task queues that are associated with this version.
 	TaskQueues []TaskQueue `json:"taskQueues,omitempty"`
 
-	// A TestWorkflow is used to validate the deployment before making it the default.
+	// A TestWorkflow is used to validate the deployment version before making it the default.
 	// +optional
 	TestWorkflows []WorkflowExecution `json:"testWorkflows,omitempty"`
 
@@ -185,7 +183,7 @@ type VersionedDeployment struct {
 }
 
 // DefaultVersionUpdateStrategy describes how to cut over new workflow executions
-// to the target worker version.
+// to the target worker deployment version.
 // +kubebuilder:validation:Enum=Manual;AllAtOnce;Progressive
 type DefaultVersionUpdateStrategy string
 
@@ -205,12 +203,12 @@ type GateWorkflowConfig struct {
 type RolloutStrategy struct {
 	// Specifies how to treat concurrent executions of a Job.
 	// Valid values are:
-	// - "Manual": do not automatically update the default worker version;
-	// - "AllAtOnce": start 100% of new workflow executions on the new worker version as soon as it's healthy;
-	// - "Progressive": ramp up the percentage of new workflow executions targeting the new worker version over time.
+	// - "Manual": do not automatically update the default worker deployment version;
+	// - "AllAtOnce": start 100% of new workflow executions on the new worker deployment version as soon as it's healthy;
+	// - "Progressive": ramp up the percentage of new workflow executions targeting the new worker deployment version over time.
 	Strategy DefaultVersionUpdateStrategy `json:"strategy"`
 
-	// Gate specifies a workflow type that must run once to completion on the new worker version before
+	// Gate specifies a workflow type that must run once to completion on the new worker deployment version before
 	// any traffic is directed to the new version.
 	Gate *GateWorkflowConfig `json:"gate,omitempty"`
 
@@ -223,7 +221,7 @@ type AllAtOnceRolloutStrategy struct{}
 
 type RolloutStep struct {
 	// RampPercentage indicates what percentage of new workflow executions should be
-	// routed to the new worker version while this step is active.
+	// routed to the new worker deployment version while this step is active.
 	//
 	// Acceptable range is [0,100].
 	RampPercentage uint8 `json:"rampPercentage"`

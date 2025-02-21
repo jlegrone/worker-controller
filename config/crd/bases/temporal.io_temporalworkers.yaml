@@ -3738,7 +3738,7 @@ spec:
                 properties:
                   connection:
                     type: string
-                  series:
+                  name:
                     type: string
                   temporalNamespace:
                     type: string
@@ -3757,10 +3757,6 @@ spec:
                 properties:
                   buildID:
                     type: string
-                  compatibleBuildIDs:
-                    items:
-                      type: string
-                    type: array
                   deployment:
                     properties:
                       apiVersion:
@@ -3824,10 +3820,6 @@ spec:
                   properties:
                     buildID:
                       type: string
-                    compatibleBuildIDs:
-                      items:
-                        type: string
-                      type: array
                     deployment:
                       properties:
                         apiVersion:
@@ -3891,10 +3883,6 @@ spec:
                 properties:
                   buildID:
                     type: string
-                  compatibleBuildIDs:
-                    items:
-                      type: string
-                    type: array
                   deployment:
                     properties:
                       apiVersion:

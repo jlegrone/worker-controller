@@ -71,7 +71,7 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 			VersioningOverride: &workflow.VersioningOverride{
 				Behavior: enums.VERSIONING_BEHAVIOR_PINNED,
 				Deployment: &deployment.Deployment{
-					SeriesName: p.DeploymentSeries,
+					SeriesName: p.DeploymentName,
 					BuildId:    wf.buildID,
 				},
 			},
@@ -95,7 +95,7 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 			if _, err := temporalClient.SetCurrentDeployment(ctx, &workflowservice.SetCurrentDeploymentRequest{
 				Namespace: p.TemporalNamespace,
 				Deployment: &deployment.Deployment{
-					SeriesName: p.DeploymentSeries,
+					SeriesName: p.DeploymentName,
 					BuildId:    vcfg.buildID,
 				},
 				Identity: "temporal-worker-controller", // TODO(jlegrone): Set this to a unique identity, should match metadata.

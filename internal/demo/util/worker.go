@@ -26,10 +26,11 @@ func NewVersionedWorker(opts worker.Options) (w worker.Worker, stopFunc func()) 
 		}
 	}()
 
+	// TODO(carlydf): update worker options when new sdk available
 	opts.BuildID = mustGetEnv("WORKER_BUILD_ID")
 	opts.UseBuildIDForVersioning = true
 	opts.DeploymentOptions = worker.DeploymentOptions{
-		DeploymentSeriesName:      mustGetEnv("TEMPORAL_DEPLOYMENT_SERIES"),
+		DeploymentSeriesName:      mustGetEnv("TEMPORAL_DEPLOYMENT_NAME"),
 		DefaultVersioningBehavior: workflow.VersioningBehaviorPinned,
 	}
 
