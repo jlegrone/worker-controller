@@ -9,7 +9,7 @@ import (
 
 	"go.temporal.io/sdk/worker"
 
-	"github.com/DataDog/temporal-worker-controller/internal/demo/helloworld/workflows"
+	"github.com/DataDog/temporal-worker-controller/internal/demo/helloworld"
 	"github.com/DataDog/temporal-worker-controller/internal/demo/util"
 )
 
@@ -18,9 +18,9 @@ func main() {
 	defer stopFunc()
 
 	// Register activities and workflows
-	w.RegisterWorkflow(workflows.HelloWorld)
-	w.RegisterActivity(workflows.GetSubject)
-	w.RegisterActivity(workflows.Sleep)
+	w.RegisterWorkflow(helloworld.HelloWorld)
+	w.RegisterActivity(helloworld.GetSubject)
+	w.RegisterActivity(helloworld.Sleep)
 
 	if err := w.Run(worker.InterruptCh()); err != nil {
 		log.Fatal(err)
