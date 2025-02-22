@@ -90,31 +90,52 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 	if vcfg := p.UpdateVersionConfig; vcfg != nil {
 		if vcfg.setDefault {
 			l.Info("registering new default version", "buildID", vcfg.buildID)
-			// TODO(carlydf) replace: temporalClient.SetWorkerDeploymentCurrentVersion()
-			// temporalClient.UpdateWorkerDeploymentVersionMetadata() // would be cool to do atomically
-			if _, err := temporalClient.SetCurrentDeployment(ctx, &workflowservice.SetCurrentDeploymentRequest{
-				Namespace: p.TemporalNamespace,
-				Deployment: &deployment.Deployment{
-					SeriesName: p.DeploymentName,
-					BuildId:    vcfg.buildID,
-				},
-				Identity: "temporal-worker-controller", // TODO(jlegrone): Set this to a unique identity, should match metadata.
-				// could use this to add information about which k8s resource initiated the last write to the deployment, so ctrlr can detect conflicts between worker deployments
-				// if default DeploymentName = <worker_name>?<k8s_namespace> then there would never be two workers with the same DeploymentName (except in case of same ns and multiple clusters)
-				UpdateMetadata: &deployment.UpdateDeploymentMetadata{
-					UpsertEntries: map[string]*common.Payload{
-						// TODO(jlegrone): Add controller identity
-						"temporal.io/managed-by": nil,
-					},
-				},
+			if _, err := temporalClient.SetWorkerDeploymentCurrentVersion(ctx, &workflowservice.SetWorkerDeploymentCurrentVersionRequest{
+				Namespace:      p.TemporalNamespace,
+				DeploymentName: p.DeploymentName,
+				Version:        p.DeploymentName + "." + vcfg.buildID,
+				ConflictToken:  nil,                          // TODO(carlydf): provide conflict token
+				Identity:       "temporal-worker-controller", // TODO(jlegrone): Set this to a unique identity, should match metadata.
 			}); err != nil {
 				return fmt.Errorf("unable to set current deployment: %w", err)
 			}
-		} else if ramp := vcfg.rampPercentage; ramp > 0 {
+			// TODO(carlydf): could use this to add information about which k8s resource initiated the last write to the deployment, so ctrlr can detect conflicts between worker deployments
+			// if default DeploymentName = <worker_name>?<k8s_namespace> then there would never be two workers with the same DeploymentName (except in case of same ns and multiple clusters)
+			if _, err := temporalClient.UpdateWorkerDeploymentVersionMetadata(ctx, &workflowservice.UpdateWorkerDeploymentVersionMetadataRequest{
+				Namespace: p.TemporalNamespace,
+				Version:   p.DeploymentName + "." + vcfg.buildID,
+				UpsertEntries: map[string]*common.Payload{
+					// TODO(jlegrone): Add controller identity
+					"temporal.io/managed-by": nil,
+				},
+			}); err != nil { // would be cool to do this atomically with the update
+				return fmt.Errorf("unable to update metadata after setting current deployment: %w", err)
+			}
+		} else if ramp := vcfg.rampPercentage; ramp > 0 { // TODO(carlydf): accept float32 ramp and any ramp in [0,100]
 			// Apply ramp
 			l.Info("applying ramp", "buildID", p.UpdateVersionConfig.buildID, "percentage", p.UpdateVersionConfig.rampPercentage)
-			// temporalClient.SetWorkerDeploymentRampingVersion()
-			return fmt.Errorf("ramp not implemented")
+			if _, err := temporalClient.SetWorkerDeploymentRampingVersion(ctx, &workflowservice.SetWorkerDeploymentRampingVersionRequest{
+				Namespace:      p.TemporalNamespace,
+				DeploymentName: p.DeploymentName,
+				Version:        p.DeploymentName + "." + vcfg.buildID,
+				Percentage:     float32(vcfg.rampPercentage),
+				ConflictToken:  nil,                          // TODO(carlydf): provide conflict token
+				Identity:       "temporal-worker-controller", // TODO(jlegrone): Set this to a unique identity, should match metadata.
+			}); err != nil {
+				return fmt.Errorf("unable to set ramping deployment: %w", err)
+			}
+			// TODO(carlydf): could use this to add information about which k8s resource initiated the last write to the deployment, so ctrlr can detect conflicts between worker deployments
+			// if default DeploymentName = <worker_name>?<k8s_namespace> then there would never be two workers with the same DeploymentName (except in case of same ns and multiple clusters)
+			if _, err := temporalClient.UpdateWorkerDeploymentVersionMetadata(ctx, &workflowservice.UpdateWorkerDeploymentVersionMetadataRequest{
+				Namespace: p.TemporalNamespace,
+				Version:   p.DeploymentName + "." + vcfg.buildID,
+				UpsertEntries: map[string]*common.Payload{
+					// TODO(jlegrone): Add controller identity
+					"temporal.io/managed-by": nil,
+				},
+			}); err != nil { // would be cool to do this atomically with the update
+				return fmt.Errorf("unable to update metadata after setting ramping deployment: %w", err)
+			}
 		}
 	}
 

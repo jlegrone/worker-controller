@@ -20,7 +20,7 @@ type WorkerOptions struct {
 	// service/application are linked together by sharing a series name.
 	//
 	// If not set, then the deployment name will default to the worker's name and Kubernetes
-	// namespace. // TODO(carlydf): change to DeploymentName
+	// namespace.
 	//
 	// +optional
 	DeploymentName string `json:"name"`
