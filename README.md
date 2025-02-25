@@ -28,7 +28,7 @@ default version after a deployment.
 
 - [x] Registration of new worker versions
 - [x] Creation of versioned worker deployment resources
-- [x] Deletion of unreachable worker deployments
+- [x] Deletion of drained worker deployments
 - [x] Manual, Blue/Green, and Progressive rollouts of new worker versions
 - [ ] Autoscaling of worker deployments
 - [ ] Automated rollover to compatible worker versions

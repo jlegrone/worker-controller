@@ -85,7 +85,9 @@ start-temporal-server: ## Start an ephemeral Temporal server with versioning API
 	$(TEMPORAL) server start-dev --ip 0.0.0.0 \
 		--dynamic-config-value frontend.workerVersioningRuleAPIs=true \
 		--dynamic-config-value frontend.workerVersioningWorkflowAPIs=true \
-		--dynamic-config-value frontend.workerVersioningDataAPIs=true
+		--dynamic-config-value frontend.workerVersioningDataAPIs=true \
+		--dynamic-config-value system.enableDeployments=true \
+		--dynamic-config-value system.enableDeploymentVersions=true
 #		--dynamic-config-value worker.buildIdScavengerEnabled=true \
 #		--dynamic-config-value worker.removableBuildIdDurationSinceDefault=0.001 \
 #		--dynamic-config-value frontend.reachabilityQuerySetDurationSinceDefault=0.001 \
