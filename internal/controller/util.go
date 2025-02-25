@@ -7,42 +7,12 @@ package controller
 import (
 	"fmt"
 
-	"golang.org/x/exp/slices"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 
 	temporaliov1alpha1 "github.com/DataDog/temporal-worker-controller/api/v1alpha1"
 	"github.com/DataDog/temporal-worker-controller/internal/controller/k8s.io/utils"
 )
-
-func findHighestPriorityStatus(statuses []temporaliov1alpha1.VersionStatus) temporaliov1alpha1.VersionStatus {
-	if len(statuses) == 0 {
-		return ""
-	}
-	slices.SortFunc(statuses, func(a, b temporaliov1alpha1.VersionStatus) int {
-		return getStatusPriority(a) - getStatusPriority(b)
-	})
-	return statuses[len(statuses)-1]
-}
-
-func getStatusPriority(s temporaliov1alpha1.VersionStatus) int {
-	switch s {
-	// TODO(carlydf): Categorize current and ramping priorities correctly
-	case temporaliov1alpha1.VersionStatusCurrent:
-		return 6
-	case temporaliov1alpha1.VersionStatusRamping:
-		return 5
-	case temporaliov1alpha1.VersionStatusInactive:
-		return 4
-	case temporaliov1alpha1.VersionStatusDraining:
-		return 3
-	case temporaliov1alpha1.VersionStatusDrained:
-		return 2
-	case temporaliov1alpha1.VersionStatusNotRegistered:
-		return 1
-	}
-	return 0
-}
 
 func computeVersionID(spec *temporaliov1alpha1.TemporalWorkerSpec) string {
 	return spec.WorkerOptions.DeploymentName + "." + computeBuildID(spec)
