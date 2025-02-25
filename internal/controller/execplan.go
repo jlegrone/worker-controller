@@ -11,7 +11,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"go.temporal.io/api/common/v1"
-	"go.temporal.io/api/deployment/v1"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/taskqueue/v1"
 	"go.temporal.io/api/workflow/v1"
@@ -69,11 +68,8 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 				Name: wf.taskQueue,
 			},
 			VersioningOverride: &workflow.VersioningOverride{
-				Behavior: enums.VERSIONING_BEHAVIOR_PINNED,
-				Deployment: &deployment.Deployment{
-					SeriesName: p.DeploymentName,
-					BuildId:    wf.buildID,
-				},
+				Behavior:      enums.VERSIONING_BEHAVIOR_PINNED,
+				PinnedVersion: wf.versionID,
 			},
 			// TODO(jlegrone): make this configurable
 			WorkflowExecutionTimeout: durationpb.New(time.Hour),
@@ -89,11 +85,11 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 	// Register default version or ramp
 	if vcfg := p.UpdateVersionConfig; vcfg != nil {
 		if vcfg.setDefault {
-			l.Info("registering new default version", "buildID", vcfg.buildID)
+			l.Info("registering new default version", "version", vcfg.versionID)
 			if _, err := temporalClient.SetWorkerDeploymentCurrentVersion(ctx, &workflowservice.SetWorkerDeploymentCurrentVersionRequest{
 				Namespace:      p.TemporalNamespace,
 				DeploymentName: p.DeploymentName,
-				Version:        p.DeploymentName + "." + vcfg.buildID,
+				Version:        vcfg.versionID,
 				ConflictToken:  nil,                          // TODO(carlydf): provide conflict token
 				Identity:       "temporal-worker-controller", // TODO(jlegrone): Set this to a unique identity, should match metadata.
 			}); err != nil {
@@ -103,7 +99,7 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 			// if default DeploymentName = <worker_name>?<k8s_namespace> then there would never be two workers with the same DeploymentName (except in case of same ns and multiple clusters)
 			if _, err := temporalClient.UpdateWorkerDeploymentVersionMetadata(ctx, &workflowservice.UpdateWorkerDeploymentVersionMetadataRequest{
 				Namespace: p.TemporalNamespace,
-				Version:   p.DeploymentName + "." + vcfg.buildID,
+				Version:   vcfg.versionID,
 				UpsertEntries: map[string]*common.Payload{
 					// TODO(jlegrone): Add controller identity
 					"temporal.io/managed-by": nil,
@@ -111,14 +107,14 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 			}); err != nil { // would be cool to do this atomically with the update
 				return fmt.Errorf("unable to update metadata after setting current deployment: %w", err)
 			}
-		} else if ramp := vcfg.rampPercentage; ramp > 0 { // TODO(carlydf): accept float32 ramp and any ramp in [0,100]
+		} else if ramp := vcfg.rampPercentage; ramp > 0 { // TODO(carlydf): support setting any ramp in [0,100]
 			// Apply ramp
-			l.Info("applying ramp", "buildID", p.UpdateVersionConfig.buildID, "percentage", p.UpdateVersionConfig.rampPercentage)
+			l.Info("applying ramp", "version", p.UpdateVersionConfig.versionID, "percentage", p.UpdateVersionConfig.rampPercentage)
 			if _, err := temporalClient.SetWorkerDeploymentRampingVersion(ctx, &workflowservice.SetWorkerDeploymentRampingVersionRequest{
 				Namespace:      p.TemporalNamespace,
 				DeploymentName: p.DeploymentName,
-				Version:        p.DeploymentName + "." + vcfg.buildID,
-				Percentage:     float32(vcfg.rampPercentage),
+				Version:        vcfg.versionID,
+				Percentage:     vcfg.rampPercentage,
 				ConflictToken:  nil,                          // TODO(carlydf): provide conflict token
 				Identity:       "temporal-worker-controller", // TODO(jlegrone): Set this to a unique identity, should match metadata.
 			}); err != nil {
@@ -128,7 +124,7 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 			// if default DeploymentName = <worker_name>?<k8s_namespace> then there would never be two workers with the same DeploymentName (except in case of same ns and multiple clusters)
 			if _, err := temporalClient.UpdateWorkerDeploymentVersionMetadata(ctx, &workflowservice.UpdateWorkerDeploymentVersionMetadataRequest{
 				Namespace: p.TemporalNamespace,
-				Version:   p.DeploymentName + "." + vcfg.buildID,
+				Version:   vcfg.versionID,
 				UpsertEntries: map[string]*common.Payload{
 					// TODO(jlegrone): Add controller identity
 					"temporal.io/managed-by": nil,

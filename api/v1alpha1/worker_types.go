@@ -32,9 +32,10 @@ type TemporalWorkerSpec struct {
 
 	// Number of desired pods. This is a pointer to distinguish between explicit
 	// zero and not specified. Defaults to 1.
+	// This field makes TemporalWorkerSpec implement the scale subresource, which is compatible with auto-scalers.
 	// TODO(jlegrone): Configure min replicas per thousand workflow/activity tasks?
 	// +optional
-	Replicas *int32 `json:"replicas,omitempty" protobuf:"varint,1,opt,name=replicas"` // TODO(carlydf) delete comment: implements scale subresource -> compatible with autoscalers such as keda
+	Replicas *int32 `json:"replicas,omitempty" protobuf:"varint,1,opt,name=replicas"`
 
 	// Label selector for pods. Existing ReplicaSets whose pods are
 	// selected by this will be the ones affected by this deployment.
@@ -66,51 +67,68 @@ type TemporalWorkerSpec struct {
 	WorkerOptions WorkerOptions `json:"workerOptions"`
 }
 
-// ReachabilityStatus indicates whether the version set is processing tasks.
+// VersionStatus indicates the status of a version.
 // +enum
-type ReachabilityStatus string
+type VersionStatus string
 
 const (
-	// ReachabilityStatusReachable indicates that the build ID may be used by
-	// new workflows or activities (base on versioning rules), or there MAY
-	// be open workflows or backlogged activities assigned to it.
-	ReachabilityStatusReachable ReachabilityStatus = "Reachable"
-	// ReachabilityStatusClosedOnly indicates that the build ID does not have
-	// open workflows and is not reachable by new workflows, but MAY have
-	// closed workflows within the namespace retention period.
-	ReachabilityStatusClosedOnly ReachabilityStatus = "ClosedWorkflows"
-	// ReachabilityStatusUnreachable indicates that the build ID is not used
-	// for new executions, nor it has been used by any existing execution
-	// within the retention period.
-	ReachabilityStatusUnreachable ReachabilityStatus = "Unreachable"
-	// ReachabilityStatusNotRegistered indicates that the build ID is not registered
-	// with Temporal for the given task queue.
-	ReachabilityStatusNotRegistered ReachabilityStatus = "NotRegistered"
+	// VersionStatusNotRegistered indicates that the version is not registered
+	// with Temporal for any worker deployment.
+	VersionStatusNotRegistered VersionStatus = "NotRegistered"
+
+	// VersionStatusInactive indicates that the version is registered in a Temporal
+	// worker deployment, but has not been set to current or ramping.
+	// A version is registered in a worker deployment after a poller with appropriate
+	// DeploymentOptions starts polling.
+	VersionStatusInactive VersionStatus = "Inactive"
+
+	// VersionStatusRamping indicates that the version is the ramping version of its
+	// worker deployment. It is accepting some percentage of new workflow executions.
+	VersionStatusRamping = "Ramping"
+
+	// VersionStatusCurrent indicates that the version is the current version of its
+	// worker deployment. It is accepting all new workflow executions except for the
+	// percent that are sent to the ramping version, if one exists.
+	VersionStatusCurrent = "Current"
+
+	// VersionStatusDraining indicates that the version has stopped accepting new workflows
+	// (is no longer ramping or current) and DOES have open workflows pinned to it.
+	VersionStatusDraining VersionStatus = "Draining"
+
+	// VersionStatusDrained indicates that the version has stopped accepting new workflows
+	// (is no longer ramping or current) and does NOT have open workflows pinned to it.
+	VersionStatusDrained VersionStatus = "Drained"
 )
 
-// TemporalWorkerStatus defines the observed state of TemporalWorker
+// TemporalWorkerStatus defines the observed state of TemporalWorker // TODO(carlydf): it may make sense to call this TemporalWorkerDeploymentStatus but leaving as is for now
 type TemporalWorkerStatus struct {
 	// Remember, status should be able to be reconstituted from the state of the world,
 	// so it’s generally not a good idea to read from the status of the root object.
 	// Instead, you should reconstruct it every run.
 
-	// TargetVersion is the desired next version. If the deployment version is nil,
+	// TargetVersion is the desired next version. If the version is nil,
 	// then the controller should create it. If not nil, the controller should
-	// wait for it to become healthy and then move it to the DefaultVersionSet. // TODO(carlydf): see what makes sense instead of DefaultVersionSet
-	TargetVersion *DeploymentVersion `json:"targetVersion"`
+	// wait for it to become healthy and then move it to the DefaultVersion.
+	TargetVersion *WorkerDeploymentVersion `json:"targetVersion"`
 
-	// DefaultVersion is the deployment version that is currently registered with
-	// Temporal as the default. This must never be nil.
+	// TargetVersionRampPercentage is the ramp percentage of the target version.
+	TargetVersionRampPercentage float32 `json:"targetVersionRampPercentage"`
+
+	// TargetVersionRampingSinceTime is time when the target version first started ramping.
+	TargetVersionRampingSinceTime *metav1.Time `json:"targetVersionRampingSinceTime"`
+
+	// DefaultVersion is the version that is currently registered with
+	// Temporal as the current version of its worker deployment. This must never be nil. // TODO(carlydf): maybe this can be nil if __unversioned__ is current?
 	//
 	// RampPercentage should always be nil for this version.
-	DefaultVersion *DeploymentVersion `json:"defaultVersion"`
+	DefaultVersion *WorkerDeploymentVersion `json:"defaultVersion"`
 
 	// DeprecatedVersions are deployment versions that are no longer the default. Any
 	// deployment versions that are unreachable should be deleted by the controller.
 	//
 	// RampPercentage should only be set for DeprecatedVersions when rollout
 	// strategy is set to manual.
-	DeprecatedVersions []*DeploymentVersion `json:"deprecatedVersions,omitempty"`
+	DeprecatedVersions []*WorkerDeploymentVersion `json:"deprecatedVersions,omitempty"`
 
 	// TODO(jlegrone): Add description
 	VersionConflictToken []byte `json:"versionConflictToken"`
@@ -147,24 +165,28 @@ type TaskQueue struct {
 	Name string `json:"name"`
 }
 
-type DeploymentVersion struct {
+type WorkerDeploymentVersion struct {
 	// Healthy indicates whether the deployment version is healthy.
 	// +optional
 	HealthySince *metav1.Time `json:"healthySince"`
 
-	// The build ID associated with the deployment version.
-	BuildID string `json:"buildID"`
+	// The string representation of the deployment version.
+	// Currently, this is always `deployment_name.build_id`.
+	VersionID string `json:"versionID"`
 
-	// TODO(carlydf): Convert to drainage status / drainage info
-	// Reachability indicates whether workers in this version may
+	// Status indicates whether workers in this version may
 	// be eligible to receive tasks from the Temporal server.
-	Reachability ReachabilityStatus `json:"reachability"`
+	Status VersionStatus `json:"status"`
 
 	// RampPercentage is the percentage of new workflow executions that are
 	// configured to start on this version.
 	//
 	// Acceptable range is [0,100].
-	RampPercentage *uint8 `json:"rampPercentage,omitempty"`
+	RampPercentage *float32 `json:"rampPercentage,omitempty"`
+
+	// DrainedSince is the time at which the version
+	// became drained.
+	DrainedSince *metav1.Time `json:"drainedSince"`
 
 	// A pointer to the version's managed k8s deployment.
 	// +optional
@@ -224,7 +246,7 @@ type RolloutStep struct {
 	// routed to the new worker deployment version while this step is active.
 	//
 	// Acceptable range is [0,100].
-	RampPercentage uint8 `json:"rampPercentage"`
+	RampPercentage float32 `json:"rampPercentage"`
 
 	// PauseDuration indicates how long to pause before progressing to the next step.
 	PauseDuration metav1.Duration `json:"pauseDuration"`

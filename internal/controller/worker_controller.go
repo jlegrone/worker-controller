@@ -49,10 +49,10 @@ type TemporalWorkerReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
+// The loop runs on a regular interval, or every time one of the watched resources listed above changes.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.15.0/pkg/reconcile
-// TODO(carlydf) delete note: runs every interval or every time a watched resource changes. (listed above)
 // TODO(carlydf): add watching of temporal connection custom resource (may have issue)
 func (r *TemporalWorkerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)

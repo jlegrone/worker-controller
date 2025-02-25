@@ -57,7 +57,7 @@ spec:
                         pauseDuration:
                           type: string
                         rampPercentage:
-                          type: integer
+                          type: number
                       required:
                       - pauseDuration
                       - rampPercentage
@@ -3755,8 +3755,6 @@ spec:
             properties:
               defaultVersion:
                 properties:
-                  buildID:
-                    type: string
                   deployment:
                     properties:
                       apiVersion:
@@ -3775,14 +3773,17 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  drainedSince:
+                    format: date-time
+                    type: string
                   healthySince:
                     format: date-time
                     type: string
                   managedBy:
                     type: string
                   rampPercentage:
-                    type: integer
-                  reachability:
+                    type: number
+                  status:
                     type: string
                   taskQueues:
                     items:
@@ -3811,15 +3812,16 @@ spec:
                       - workflowID
                       type: object
                     type: array
+                  versionID:
+                    type: string
                 required:
-                - buildID
-                - reachability
+                - drainedSince
+                - status
+                - versionID
                 type: object
               deprecatedVersions:
                 items:
                   properties:
-                    buildID:
-                      type: string
                     deployment:
                       properties:
                         apiVersion:
@@ -3838,14 +3840,17 @@ spec:
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic
+                    drainedSince:
+                      format: date-time
+                      type: string
                     healthySince:
                       format: date-time
                       type: string
                     managedBy:
                       type: string
                     rampPercentage:
-                      type: integer
-                    reachability:
+                      type: number
+                    status:
                       type: string
                     taskQueues:
                       items:
@@ -3874,15 +3879,16 @@ spec:
                         - workflowID
                         type: object
                       type: array
+                    versionID:
+                      type: string
                   required:
-                  - buildID
-                  - reachability
+                  - drainedSince
+                  - status
+                  - versionID
                   type: object
                 type: array
               targetVersion:
                 properties:
-                  buildID:
-                    type: string
                   deployment:
                     properties:
                       apiVersion:
@@ -3901,14 +3907,17 @@ spec:
                         type: string
                     type: object
                     x-kubernetes-map-type: atomic
+                  drainedSince:
+                    format: date-time
+                    type: string
                   healthySince:
                     format: date-time
                     type: string
                   managedBy:
                     type: string
                   rampPercentage:
-                    type: integer
-                  reachability:
+                    type: number
+                  status:
                     type: string
                   taskQueues:
                     items:
@@ -3937,16 +3946,26 @@ spec:
                       - workflowID
                       type: object
                     type: array
+                  versionID:
+                    type: string
                 required:
-                - buildID
-                - reachability
+                - drainedSince
+                - status
+                - versionID
                 type: object
+              targetVersionRampPercentage:
+                type: number
+              targetVersionRampingSinceTime:
+                format: date-time
+                type: string
               versionConflictToken:
                 format: byte
                 type: string
             required:
             - defaultVersion
             - targetVersion
+            - targetVersionRampPercentage
+            - targetVersionRampingSinceTime
             - versionConflictToken
             type: object
         type: object

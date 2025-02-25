@@ -58,11 +58,11 @@ func newTestDeployment(podSpec v1.PodTemplateSpec, desiredReplicas int32) *appsv
 	}
 }
 
-func newTestDeploymentVersion(reachabilityStatus temporaliov1alpha1.ReachabilityStatus, deploymentName string) *temporaliov1alpha1.DeploymentVersion {
-	result := temporaliov1alpha1.DeploymentVersion{
+func newTestWorkerDeploymentVersion(status temporaliov1alpha1.VersionStatus, deploymentName string) *temporaliov1alpha1.WorkerDeploymentVersion {
+	result := temporaliov1alpha1.WorkerDeploymentVersion{
 		HealthySince:   nil,
-		BuildID:        "test-id",
-		Reachability:   reachabilityStatus,
+		VersionID:      deploymentName + "." + "test-id",
+		Status:         status,
 		RampPercentage: nil,
 		Deployment:     nil,
 	}
@@ -79,6 +79,7 @@ func newTestDeploymentVersion(reachabilityStatus temporaliov1alpha1.Reachability
 	return &result
 }
 
+// TODO(carlydf): make these tests align with VersionStatus instead of reachability
 func TestGeneratePlan(t *testing.T) {
 	type testCase struct {
 		observedState *temporaliov1alpha1.TemporalWorkerStatus
@@ -89,16 +90,16 @@ func TestGeneratePlan(t *testing.T) {
 	testCases := map[string]testCase{
 		"no action needed": {
 			observedState: &temporaliov1alpha1.TemporalWorkerStatus{
-				DefaultVersion: newTestDeploymentVersion(temporaliov1alpha1.ReachabilityStatusReachable, "foo-a"),
+				DefaultVersion: newTestWorkerDeploymentVersion(temporaliov1alpha1.VersionStatusInactive, "foo-a"), // prev reachable
 			},
 			desiredState: newTestWorkerSpec(3),
 			expectedPlan: plan{},
 		},
-		"create deployment": {
+		"create deployment version": {
 			observedState: &temporaliov1alpha1.TemporalWorkerStatus{
-				DefaultVersion: &temporaliov1alpha1.DeploymentVersion{
-					Reachability: temporaliov1alpha1.ReachabilityStatusReachable,
-					BuildID:      "a",
+				DefaultVersion: &temporaliov1alpha1.WorkerDeploymentVersion{
+					Status:    temporaliov1alpha1.VersionStatusInactive, // prev reachable
+					VersionID: "foo-a.a",
 				},
 				DeprecatedVersions: nil,
 			},
@@ -109,13 +110,13 @@ func TestGeneratePlan(t *testing.T) {
 				UpdateVersionConfig: nil,
 			},
 		},
-		"delete unreachable deployments": {
+		"delete unreachable deployment versions": {
 			observedState: &temporaliov1alpha1.TemporalWorkerStatus{
-				DefaultVersion: newTestDeploymentVersion(temporaliov1alpha1.ReachabilityStatusReachable, "foo-a"),
-				DeprecatedVersions: []*temporaliov1alpha1.DeploymentVersion{
-					newTestDeploymentVersion(temporaliov1alpha1.ReachabilityStatusUnreachable, "foo-b"),
-					newTestDeploymentVersion(temporaliov1alpha1.ReachabilityStatusReachable, "foo-c"),
-					newTestDeploymentVersion(temporaliov1alpha1.ReachabilityStatusUnreachable, "foo-d"),
+				DefaultVersion: newTestWorkerDeploymentVersion(temporaliov1alpha1.VersionStatusInactive, "foo-a"), // prev reachable
+				DeprecatedVersions: []*temporaliov1alpha1.WorkerDeploymentVersion{
+					newTestWorkerDeploymentVersion(temporaliov1alpha1.VersionStatusInactive, "foo-b"), // prev unreachable
+					newTestWorkerDeploymentVersion(temporaliov1alpha1.VersionStatusInactive, "foo-c"), // prev reachable
+					newTestWorkerDeploymentVersion(temporaliov1alpha1.VersionStatusInactive, "foo-d"), // prev unreachable
 				},
 			},
 			desiredState: newTestWorkerSpec(3),

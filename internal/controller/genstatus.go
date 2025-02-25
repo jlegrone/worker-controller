@@ -10,6 +10,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"go.temporal.io/api/common/v1"
@@ -27,35 +28,48 @@ import (
 )
 
 type deploymentVersionCollection struct {
-	buildIDsToDeployments map[string]*appsv1.Deployment
-	// map of build IDs to ramp percentages [0,100]
-	rampPercentages map[string]uint8
-	// map of build IDs to task queue stats
+	versionIDsToDeployments map[string]*appsv1.Deployment
+	// map of version IDs to ramp percentages [0,100]
+	rampPercentages map[string]float32
+	// map of version IDs to task queue stats
 	stats map[string]temporaliov1alpha1.QueueStatistics
-	// map of build IDs to reachability
-	reachabilityStatus map[string]temporaliov1alpha1.ReachabilityStatus
-	// map of build IDs to test workflow executions
+	// map of version IDs to version status
+	versionStatus map[string]temporaliov1alpha1.VersionStatus
+	// map of version IDs to drained since timestamps.
+	drainedSince map[string]*metav1.Time
+	// map of version IDs to test workflow executions
 	testWorkflowStatus map[string][]temporaliov1alpha1.WorkflowExecution
-	// map of build IDs to task queues
+	// map of version IDs to task queues
 	taskQueues map[string][]string
 }
 
-func (c *deploymentVersionCollection) getDeployment(buildID string) (*appsv1.Deployment, bool) {
-	d, ok := c.buildIDsToDeployments[buildID]
+func (c *deploymentVersionCollection) getDeployment(versionID string) (*appsv1.Deployment, bool) {
+	d, ok := c.versionIDsToDeployments[versionID]
 	return d, ok
 }
 
-func (c *deploymentVersionCollection) getDeploymentVersion(buildID string) (*temporaliov1alpha1.DeploymentVersion, *temporaliov1alpha1.QueueStatistics) {
-	result := temporaliov1alpha1.DeploymentVersion{
+func (c *deploymentVersionCollection) getStatus(versionID string) (temporaliov1alpha1.VersionStatus, bool) {
+	s, ok := c.versionStatus[versionID]
+	return s, ok
+}
+
+func (c *deploymentVersionCollection) getDrainedSince(versionID string) (*metav1.Time, bool) {
+	t, ok := c.drainedSince[versionID]
+	return t, ok
+}
+
+func (c *deploymentVersionCollection) getWorkerDeploymentVersion(versionID string) (*temporaliov1alpha1.WorkerDeploymentVersion, *temporaliov1alpha1.QueueStatistics) {
+	result := temporaliov1alpha1.WorkerDeploymentVersion{
 		HealthySince:   nil,
-		BuildID:        buildID,
-		Reachability:   temporaliov1alpha1.ReachabilityStatusNotRegistered,
+		VersionID:      versionID,
+		Status:         temporaliov1alpha1.VersionStatusNotRegistered,
 		RampPercentage: nil,
+		DrainedSince:   nil,
 		Deployment:     nil,
 	}
 
 	// Set deployment ref and health status
-	if d, ok := c.getDeployment(buildID); ok {
+	if d, ok := c.getDeployment(versionID); ok {
 		// Check if deployment condition is "available"
 		var healthySince *metav1.Time
 		// TODO(jlegrone): do we need to sort conditions by timestamp to check only latest?
@@ -70,26 +84,33 @@ func (c *deploymentVersionCollection) getDeploymentVersion(buildID string) (*tem
 	}
 
 	// Set ramp percentage
-	if ramp, ok := c.rampPercentages[buildID]; ok && ramp != 100 {
+	// TODO(carlydf): API now supports ramps in [0,100]
+	if ramp, ok := c.rampPercentages[versionID]; ok && ramp != 100 {
 		result.RampPercentage = &ramp
 	}
 
-	// Set reachability
-	if st, ok := c.reachabilityStatus[buildID]; ok {
-		result.Reachability = st
+	// Set version status
+	if st, ok := c.versionStatus[versionID]; ok {
+		result.Status = st
+	}
+
+	// Set drained since
+	if ds, ok := c.drainedSince[versionID]; ok {
+		result.DrainedSince = ds
 	}
 
 	var stats temporaliov1alpha1.QueueStatistics
-	if s, ok := c.stats[buildID]; ok {
+	if s, ok := c.stats[versionID]; ok {
 		stats = s
 	}
 
 	// Set test workflow status
-	if testWorkflows, ok := c.testWorkflowStatus[buildID]; ok {
+	if testWorkflows, ok := c.testWorkflowStatus[versionID]; ok {
 		result.TestWorkflows = testWorkflows
 	}
 
-	for _, tq := range c.taskQueues[buildID] {
+	// TODO(carlydf): support multiple task queues per worker deployment
+	for _, tq := range c.taskQueues[versionID] {
 		result.TaskQueues = append(result.TaskQueues, temporaliov1alpha1.TaskQueue{
 			Name: tq,
 		})
@@ -98,8 +119,8 @@ func (c *deploymentVersionCollection) getDeploymentVersion(buildID string) (*tem
 	return &result, &stats
 }
 
-func (c *deploymentVersionCollection) addDeployment(buildID string, d *appsv1.Deployment) {
-	c.buildIDsToDeployments[buildID] = d
+func (c *deploymentVersionCollection) addDeployment(versionID string, d *appsv1.Deployment) {
+	c.versionIDsToDeployments[versionID] = d
 }
 
 func (c *deploymentVersionCollection) addAssignmentRule(rule *taskqueue.BuildIdAssignmentRule) {
@@ -108,34 +129,28 @@ func (c *deploymentVersionCollection) addAssignmentRule(rule *taskqueue.BuildIdA
 		return
 	}
 	if ramp := rule.GetPercentageRamp(); ramp != nil {
-		c.rampPercentages[rule.GetTargetBuildId()] = convertFloatToUint(ramp.GetRampPercentage())
+		c.rampPercentages[rule.GetTargetBuildId()] = ramp.GetRampPercentage()
 	} else {
 		c.rampPercentages[rule.GetTargetBuildId()] = 100
 	}
 }
 
-func (c *deploymentVersionCollection) addDeploymentReachability(buildID string, info enums.DeploymentReachability) error {
-	var reachability temporaliov1alpha1.ReachabilityStatus
-	switch info {
-	case enums.DEPLOYMENT_REACHABILITY_REACHABLE, enums.DEPLOYMENT_REACHABILITY_UNSPECIFIED:
-		reachability = temporaliov1alpha1.ReachabilityStatusReachable
-	case enums.DEPLOYMENT_REACHABILITY_CLOSED_WORKFLOWS_ONLY:
-		reachability = temporaliov1alpha1.ReachabilityStatusClosedOnly
-	case enums.DEPLOYMENT_REACHABILITY_UNREACHABLE:
-		reachability = temporaliov1alpha1.ReachabilityStatusUnreachable
-	default:
-		return fmt.Errorf("unhandled build id reachability: %s", info.String())
-	}
-	c.reachabilityStatus[buildID] = reachability
-
-	return nil
+func (c *deploymentVersionCollection) addVersionStatus(version string, status temporaliov1alpha1.VersionStatus) {
+	c.versionStatus[version] = status
+	return
 }
 
-func (c *deploymentVersionCollection) addTaskQueue(buildID, name string) {
-	c.taskQueues[buildID] = append(c.taskQueues[buildID], name)
+func (c *deploymentVersionCollection) addDrainedSince(version string, drainedSince time.Time) {
+	t := metav1.NewTime(drainedSince)
+	c.drainedSince[version] = &t
+	return
 }
 
-func (c *deploymentVersionCollection) addTestWorkflowStatus(buildID string, info *workflow.WorkflowExecutionInfo) error {
+func (c *deploymentVersionCollection) addTaskQueue(versionID, name string) {
+	c.taskQueues[versionID] = append(c.taskQueues[versionID], name)
+}
+
+func (c *deploymentVersionCollection) addTestWorkflowStatus(versionID string, info *workflow.WorkflowExecutionInfo) error {
 	var s temporaliov1alpha1.WorkflowExecutionStatus
 	switch info.GetStatus() {
 	case enums.WORKFLOW_EXECUTION_STATUS_UNSPECIFIED:
@@ -156,7 +171,7 @@ func (c *deploymentVersionCollection) addTestWorkflowStatus(buildID string, info
 	default:
 		return fmt.Errorf("unhandled test workflow status: %s", info.GetStatus().String())
 	}
-	c.testWorkflowStatus[buildID] = append(c.testWorkflowStatus[buildID], temporaliov1alpha1.WorkflowExecution{
+	c.testWorkflowStatus[versionID] = append(c.testWorkflowStatus[versionID], temporaliov1alpha1.WorkflowExecution{
 		WorkflowID: info.GetExecution().GetWorkflowId(),
 		RunID:      info.GetExecution().GetRunId(),
 		TaskQueue:  info.GetTaskQueue(),
@@ -166,20 +181,7 @@ func (c *deploymentVersionCollection) addTestWorkflowStatus(buildID string, info
 	return nil
 }
 
-func (c *deploymentVersionCollection) addReachability(buildID string, info *taskqueue.TaskQueueVersionInfo) error {
-	var reachability temporaliov1alpha1.ReachabilityStatus
-	switch info.GetTaskReachability() {
-	case enums.BUILD_ID_TASK_REACHABILITY_REACHABLE, enums.BUILD_ID_TASK_REACHABILITY_UNSPECIFIED:
-		reachability = temporaliov1alpha1.ReachabilityStatusReachable
-	case enums.BUILD_ID_TASK_REACHABILITY_CLOSED_WORKFLOWS_ONLY:
-		reachability = temporaliov1alpha1.ReachabilityStatusClosedOnly
-	case enums.BUILD_ID_TASK_REACHABILITY_UNREACHABLE:
-		reachability = temporaliov1alpha1.ReachabilityStatusUnreachable
-	default:
-		return fmt.Errorf("unhandled build id reachability: %s", info.GetTaskReachability().String())
-	}
-	c.reachabilityStatus[buildID] = reachability
-
+func (c *deploymentVersionCollection) addTaskQueueStats(versionID string, info *taskqueue.TaskQueueVersionInfo) error {
 	// Compute total stats
 	var totalStats temporaliov1alpha1.QueueStatistics
 	for _, stat := range info.GetTypesInfo() {
@@ -191,12 +193,12 @@ func (c *deploymentVersionCollection) addReachability(buildID string, info *task
 		totalStats.TasksDispatchRate += stat.GetStats().GetTasksDispatchRate()
 	}
 	// TODO(jlegrone): Register stats after supported by temporal server
-	c.stats[buildID] = totalStats
+	c.stats[versionID] = totalStats
 
 	return nil
 }
 
-func (c *deploymentVersionCollection) addStats(buildID string, info map[int32]*taskqueue.TaskQueueTypeInfo) error {
+func (c *deploymentVersionCollection) addStats(versionID string, info map[int32]*taskqueue.TaskQueueTypeInfo) error {
 	// Compute total stats
 	var totalStats temporaliov1alpha1.QueueStatistics
 	for _, stat := range info {
@@ -208,36 +210,36 @@ func (c *deploymentVersionCollection) addStats(buildID string, info map[int32]*t
 		totalStats.TasksDispatchRate += stat.GetStats().GetTasksDispatchRate()
 	}
 	// TODO(jlegrone): Register stats after supported by temporal server
-	c.stats[buildID] = totalStats
+	c.stats[versionID] = totalStats
 
 	return nil
 }
 
-func newdeploymentVersionCollection() deploymentVersionCollection {
+func newDeploymentVersionCollection() deploymentVersionCollection {
 	return deploymentVersionCollection{
-		buildIDsToDeployments: make(map[string]*appsv1.Deployment),
-		rampPercentages:       make(map[string]uint8),
-		stats:                 make(map[string]temporaliov1alpha1.QueueStatistics),
-		reachabilityStatus:    make(map[string]temporaliov1alpha1.ReachabilityStatus),
-		testWorkflowStatus:    make(map[string][]temporaliov1alpha1.WorkflowExecution),
-		taskQueues:            make(map[string][]string),
+		versionIDsToDeployments: make(map[string]*appsv1.Deployment),
+		rampPercentages:         make(map[string]float32),
+		stats:                   make(map[string]temporaliov1alpha1.QueueStatistics),
+		versionStatus:           make(map[string]temporaliov1alpha1.VersionStatus),
+		testWorkflowStatus:      make(map[string][]temporaliov1alpha1.WorkflowExecution),
+		taskQueues:              make(map[string][]string),
 	}
 }
 
 func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Logger, temporalClient workflowservice.WorkflowServiceClient, req ctrl.Request, workerDeploy *temporaliov1alpha1.TemporalWorker) (*temporaliov1alpha1.TemporalWorkerStatus, error) {
 	var (
-		desiredBuildID, defaultBuildID string
-		deployedBuildIDs               []string
-		versions                       = newdeploymentVersionCollection()
+		desiredVersionID, defaultVersionID string
+		deployedVersions                   []string
+		versions                           = newDeploymentVersionCollection()
 	)
 
 	if workerDeploy.Spec.WorkerOptions.DeploymentName == "" {
 		panic("nope")
 	}
+	workerDeploymentName := workerDeploy.Spec.WorkerOptions.DeploymentName
+	desiredVersionID = computeVersionID(&workerDeploy.Spec)
 
-	desiredBuildID = computeBuildID(&workerDeploy.Spec)
-
-	// Get managed worker deployments
+	// List k8s deployments that correspond to managed worker deployment versions
 	var childDeploys appsv1.DeploymentList
 	if err := r.List(ctx, &childDeploys, client.InNamespace(req.Namespace), client.MatchingFields{deployOwnerKey: req.Name}); err != nil {
 		return nil, fmt.Errorf("unable to list child deployments: %w", err)
@@ -246,175 +248,110 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	sort.SliceStable(childDeploys.Items, func(i, j int) bool {
 		return childDeploys.Items[i].ObjectMeta.CreationTimestamp.Before(&childDeploys.Items[j].ObjectMeta.CreationTimestamp)
 	})
-	// Track each deployment by build ID
+	// Track each worker deployment version by version ID
 	for _, childDeploy := range childDeploys.Items {
+		// TODO(carlydf): decide whether this should still be a build ID label vs a version ID
 		if buildID, ok := childDeploy.GetLabels()[buildIDLabel]; ok {
-			versions.addDeployment(buildID, &childDeploy)
-			deployedBuildIDs = append(deployedBuildIDs, buildID)
+			versionID := workerDeploymentName + "." + buildID
+			versions.addDeployment(versionID, &childDeploy)
+			deployedVersions = append(deployedVersions, versionID)
 			continue
 		}
 		// TODO(jlegrone): implement some error handling (maybe a human deleted the label?)
 	}
 
-	// List deployments in Temporal
-	// TODO(carlydf): temporalClient.DescribeWorkerDeployment() --> list of deployment versions summaries (version id + drainage status) in that deployment
-	deploymentList, err := temporalClient.ListDeployments(ctx, &workflowservice.ListDeploymentsRequest{
-		Namespace:     workerDeploy.Spec.WorkerOptions.TemporalNamespace,
-		SeriesName:    workerDeploy.Spec.WorkerOptions.DeploymentName,
-		PageSize:      0,
-		NextPageToken: nil,
+	// List deployment versions in Temporal
+	describeResp, err := temporalClient.DescribeWorkerDeployment(ctx, &workflowservice.DescribeWorkerDeploymentRequest{
+		Namespace:      workerDeploy.Spec.WorkerOptions.TemporalNamespace,
+		DeploymentName: workerDeploymentName,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to list deployments: %w", err)
+		return nil, fmt.Errorf("unable to describe worker deployment: %w", err)
+	}
+	workerDeploymentInfo := describeResp.GetWorkerDeploymentInfo()
+	routingConfig := workerDeploymentInfo.GetRoutingConfig()
+
+	// Check if the worker deployment was modified out of band of the controller (eg. via the Temporal CLI)
+	if workerDeploymentInfo.GetLastModifierIdentity() != "temporal-worker-controller" {
+		// TODO(jlegrone): if it was set by another client, switch to manual mode
 	}
 
-	if len(deploymentList.GetDeployments()) == 0 {
-		l.Error(fmt.Errorf("no deployments found"), "no deployments found")
+	if len(workerDeploymentInfo.GetVersionSummaries()) == 0 {
+		l.Error(fmt.Errorf("no deployment versions found"), "no deployment versions found")
 	}
 
-	// TODO(jlegrone): Support ramp values
-	for _, deployment := range deploymentList.GetDeployments() {
-		// Set default build ID
-		if deployment.GetIsCurrent() {
-			defaultBuildID = deployment.GetDeployment().GetBuildId()
-
-			// When a deployment is the default it will always be reachable, so skip querying the API.
-			// TODO(carlydf): change to drained semantics
-			_ = versions.addDeploymentReachability(deployment.GetDeployment().GetBuildId(), enums.DEPLOYMENT_REACHABILITY_REACHABLE)
-
-			// Check if the build ID was promoted to default out of band of the controller (eg. via the Temporal CLI)
-			desc, err := temporalClient.DescribeDeployment(ctx, &workflowservice.DescribeDeploymentRequest{
-				Namespace:  workerDeploy.Spec.WorkerOptions.TemporalNamespace,
-				Deployment: deployment.GetDeployment(),
+	var rampingSinceTime *metav1.Time
+	var rampPercentage float32
+	// Set all the version statuses
+	for _, version := range workerDeploymentInfo.GetVersionSummaries() {
+		drainageStatus := version.GetDrainageStatus()
+		var versionStatus temporaliov1alpha1.VersionStatus
+		if version.GetVersion() == routingConfig.GetCurrentVersion() {
+			versionStatus = temporaliov1alpha1.VersionStatusCurrent
+		} else if version.GetVersion() == routingConfig.GetRampingVersion() {
+			versionStatus = temporaliov1alpha1.VersionStatusRamping
+			rt := metav1.NewTime(routingConfig.GetRampingVersionChangedTime().AsTime())
+			rampingSinceTime = &rt
+			rampPercentage = routingConfig.GetRampingVersionPercentage()
+			l.Info(fmt.Sprintf("version %s has been ramping since %s, current ramp percentage %v", version.GetVersion(), rt.String(), rampPercentage))
+		} else if drainageStatus == enums.VERSION_DRAINAGE_STATUS_DRAINING {
+			versionStatus = temporaliov1alpha1.VersionStatusDraining
+		} else if drainageStatus == enums.VERSION_DRAINAGE_STATUS_DRAINED {
+			versionStatus = temporaliov1alpha1.VersionStatusDrained
+			// see when it was drained
+			versionResp, err := temporalClient.DescribeWorkerDeploymentVersion(ctx, &workflowservice.DescribeWorkerDeploymentVersionRequest{
+				Namespace: workerDeploy.Spec.WorkerOptions.TemporalNamespace,
+				Version:   version.GetVersion(),
 			})
 			if err != nil {
-				return nil, fmt.Errorf("unable to describe default deployment for build ID %q: %w", deployment.GetDeployment().GetBuildId(), err)
+				l.Error(err, "unable to describe version to see when it drained")
+				return nil, fmt.Errorf("unable to describe version for version %q: %w", version, err)
 			}
-			// TODO(jlegrone): check for controller identity in metadata - if it was set by another client, switch to manual mode
-			desc.GetDeploymentInfo().GetMetadata()
+			drainedSinceTime := versionResp.GetWorkerDeploymentVersionInfo().GetDrainageInfo().GetLastChangedTime()
+			l.Info(fmt.Sprintf("version %s has been drained since %s", version.GetVersion(), drainedSinceTime.String()))
+			versions.addDrainedSince(version.GetVersion(), drainedSinceTime.AsTime())
 		} else {
-			// Get reachability status
-			reachability, err := temporalClient.GetDeploymentReachability(ctx, &workflowservice.GetDeploymentReachabilityRequest{
-				Namespace:  workerDeploy.Spec.WorkerOptions.TemporalNamespace,
-				Deployment: deployment.GetDeployment(),
-			})
-			if err != nil {
-				l.Error(err, "unable to get deployment reachability")
-				return nil, fmt.Errorf("unable to get deployment reachability for build ID %q: %w", deployment.GetDeployment().GetBuildId(), err)
-			}
-			if err := versions.addDeploymentReachability(deployment.GetDeployment().GetBuildId(), reachability.GetReachability()); err != nil {
-				return nil, fmt.Errorf("error computing reachability for build ID %q: %w", deployment.GetDeployment().GetBuildId(), err)
-			}
+			versionStatus = temporaliov1alpha1.VersionStatusInactive
 		}
-		//<<<<<<< HEAD
-		//
-		//		// Check the status of the test workflow for the next version, if one is in progress.
-		//		if !deployment.GetIsCurrent() && deployment.GetDeployment().GetBuildId() == desiredBuildID {
-		//			// Describe the deployment to get task queue information
-		//			deploymentInfo, err := temporalClient.DescribeDeployment(ctx, &workflowservice.DescribeDeploymentRequest{
-		//				Namespace:  workerDeploy.Spec.WorkerOptions.TemporalNamespace,
-		//				Deployment: deployment.GetDeployment(),
-		//			})
-		//			if err != nil {
-		//				return nil, fmt.Errorf("unable to describe deployment for build ID %q: %w", deployment.GetDeployment().GetBuildId(), err)
-		//			}
-		//
-		//			// TODO(jlegrone): Validate that task queues from current default version are still present in this new version.
-		//			// Temporal handles this (write note)
-		//			for _, tq := range deploymentInfo.GetDeploymentInfo().GetTaskQueueInfos() {
-		//				// Keep track of which task queues this version of the worker is polling on
-		//				if tq.GetType() != enums.TASK_QUEUE_TYPE_WORKFLOW {
-		//					continue
-		//				}
-		//				versions.addTaskQueue(desiredBuildID, tq.GetName())
-		//
-		//				// If there is a test workflow associated with this task queue and build id, check its status.
-		//				wf, err := temporalClient.DescribeWorkflowExecution(ctx, &workflowservice.DescribeWorkflowExecutionRequest{
-		//					Namespace: workerDeploy.Spec.WorkerOptions.TemporalNamespace,
-		//					Execution: &common.WorkflowExecution{
-		//						WorkflowId: getTestWorkflowID(workerDeploy.Spec.WorkerOptions.DeploymentName, tq.GetName(), desiredBuildID),
-		//					},
-		//				})
-		//				// TODO(jlegrone): Detect "not found" errors properly
-		//				if err != nil && !strings.Contains(err.Error(), "workflow not found") {
-		//					return nil, fmt.Errorf("unable to describe test workflow: %w", err)
-		//				}
-		//				if err := versions.addTestWorkflowStatus(desiredBuildID, wf.GetWorkflowExecutionInfo()); err != nil {
-		//					return nil, fmt.Errorf("error computing test workflow status for build ID %q: %w", deployment.GetDeployment().GetBuildId(), err)
-		//				}
-		//			}
-		//		}
-		//	}
-		//=======
+		versions.addVersionStatus(version.GetVersion(), versionStatus)
+	}
 
-		// Check the status of the test workflow for the next version, if one is in progress.
-		if !deployment.GetIsCurrent() && deployment.GetDeployment().GetBuildId() == desiredBuildID {
-			// Describe the deployment to get task queue information
-			deploymentInfo, err := temporalClient.DescribeDeployment(ctx, &workflowservice.DescribeDeploymentRequest{
-				Namespace:  workerDeploy.Spec.WorkerOptions.TemporalNamespace,
-				Deployment: deployment.GetDeployment(),
-			})
-			if err != nil {
-				return nil, fmt.Errorf("unable to describe deployment for build ID %q: %w", deployment.GetDeployment().GetBuildId(), err)
+	// Check the status of the test workflow for the next version, if one is in progress.
+	if desiredVersionID != routingConfig.GetCurrentVersion() && desiredVersionID != routingConfig.GetRampingVersion() {
+
+		// Describe the desired version to get task queue information
+		// Temporal will error if any task queue in the existing current version is not present in the new current version.
+		// Temporal will also error if any task queue in the existing current version is not present in the new ramping version.
+		versionResp, err := temporalClient.DescribeWorkerDeploymentVersion(ctx, &workflowservice.DescribeWorkerDeploymentVersionRequest{
+			Namespace: workerDeploy.Spec.WorkerOptions.TemporalNamespace,
+			Version:   desiredVersionID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to describe worker deployment version for version %q: %w", desiredVersionID, err)
+		}
+		for _, tq := range versionResp.GetWorkerDeploymentVersionInfo().GetTaskQueueInfos() {
+			// Keep track of which task queues this version of the worker is polling on
+			if tq.GetType() != enums.TASK_QUEUE_TYPE_WORKFLOW {
+				continue
 			}
+			versions.addTaskQueue(desiredVersionID, tq.GetName())
 
-			// TODO(jlegrone): Validate that task queues from current default version are still present in this new version.
-			for _, tq := range deploymentInfo.GetDeploymentInfo().GetTaskQueueInfos() {
-				// Keep track of which task queues this version of the worker is polling on
-				if tq.GetType() != enums.TASK_QUEUE_TYPE_WORKFLOW {
-					continue
-				}
-				versions.addTaskQueue(desiredBuildID, tq.GetName())
-
-				// If there is a test workflow associated with this task queue and build id, check its status.
-				wf, err := temporalClient.DescribeWorkflowExecution(ctx, &workflowservice.DescribeWorkflowExecutionRequest{
-					Namespace: workerDeploy.Spec.WorkerOptions.TemporalNamespace,
-					Execution: &common.WorkflowExecution{
-						WorkflowId: getTestWorkflowID(workerDeploy.Spec.WorkerOptions.DeploymentName, tq.GetName(), desiredBuildID),
-					},
-				})
-				// TODO(jlegrone): Detect "not found" errors properly
-				if err != nil && !strings.Contains(err.Error(), "workflow not found") {
-					return nil, fmt.Errorf("unable to describe test workflow: %w", err)
-				}
-				if err := versions.addTestWorkflowStatus(desiredBuildID, wf.GetWorkflowExecutionInfo()); err != nil {
-					return nil, fmt.Errorf("error computing test workflow status for build ID %q: %w", deployment.GetDeployment().GetBuildId(), err)
-				}
+			// If there is a test workflow associated with this task queue and build id, check its status.
+			wf, err := temporalClient.DescribeWorkflowExecution(ctx, &workflowservice.DescribeWorkflowExecutionRequest{
+				Namespace: workerDeploy.Spec.WorkerOptions.TemporalNamespace,
+				Execution: &common.WorkflowExecution{
+					WorkflowId: getTestWorkflowID(workerDeploy.Spec.WorkerOptions.DeploymentName, tq.GetName(), desiredVersionID),
+				},
+			})
+			// TODO(jlegrone): Detect "not found" errors properly
+			if err != nil && !strings.Contains(err.Error(), "workflow not found") {
+				return nil, fmt.Errorf("unable to describe test workflow: %w", err)
+			}
+			if err := versions.addTestWorkflowStatus(desiredVersionID, wf.GetWorkflowExecutionInfo()); err != nil {
+				return nil, fmt.Errorf("error computing test workflow status for version %q: %w", desiredVersionID, err)
 			}
 		}
 	}
-
-	// TODO(jlegrone): re-enable stats once available in versioning v3.
-	// Get stats for all build IDs associated with the task queue via the Temporal API
-	//tq, err := temporalClient.DescribeTaskQueue(ctx, &workflowservice.DescribeTaskQueueRequest{
-	//	ApiMode:   enums.DESCRIBE_TASK_QUEUE_MODE_ENHANCED,
-	//	Namespace: workerDeploy.Spec.WorkerOptions.TemporalNamespace,
-	//	TaskQueue: &taskqueue.TaskQueue{
-	//		Name: workerDeploy.Spec.WorkerOptions.TaskQueue,
-	//		Kind: enums.TASK_QUEUE_KIND_NORMAL,
-	//	},
-	//	Versions: &taskqueue.TaskQueueVersionSelection{
-	//		// Including deployed build IDs means that we'll observe the "UnReachable" status even for versions
-	//		// that are no longer known to the server. Not including this option means we can see the "NotRegistered"
-	//		// status and trigger deletion rather than scaling to zero.
-	//		//
-	//		// This can also lead to the following error: Too many build ids queried at once with ReportTaskReachability==true, limit: 5
-	//		//BuildIds:  deployedBuildIDs,
-	//		AllActive: true,
-	//	},
-	//	ReportStats:            true,
-	//	ReportTaskReachability: false, // This used to be enabled, but now reachability is retrieved using the GetDeploymentReachability API.
-	//	ReportPollers:          false,
-	//})
-	//if err != nil {
-	//	return nil, fmt.Errorf("unable to describe task queue: %w", err)
-	//}
-	//for buildID, info := range tq.GetVersionsInfo() {
-	//	if err := versions.addStats(buildID, info.GetTypesInfo()); err != nil {
-	//		return nil, fmt.Errorf("error computing reachability for build ID %q: %w", buildID, err)
-	//	}
-	//}
-	//>>>>>>> d4778668a09a4e38eeaf765941093341b55c7fe4
 
 	// TODO(jlegrone): re-enable stats once available in versioning v3.
 	// Get stats for all build IDs associated with the task queue via the Temporal API
@@ -448,19 +385,19 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	//}
 
 	// reconcile deployments that exist in k8s but not in temporal. (scaled to 0 so they're not polling)
-	var deprecatedVersions []*temporaliov1alpha1.DeploymentVersion
-	for _, buildID := range deployedBuildIDs {
-		switch buildID {
-		case desiredBuildID, defaultBuildID:
+	var deprecatedVersions []*temporaliov1alpha1.WorkerDeploymentVersion
+	for _, version := range deployedVersions {
+		switch version {
+		case desiredVersionID, defaultVersionID:
 			continue
 		}
-		d, _ := versions.getDeploymentVersion(buildID)
+		d, _ := versions.getWorkerDeploymentVersion(version)
 		deprecatedVersions = append(deprecatedVersions, d)
 	}
 
 	var (
-		defaultVersion, _ = versions.getDeploymentVersion(defaultBuildID)
-		targetVersion, _  = versions.getDeploymentVersion(desiredBuildID)
+		defaultVersion, _ = versions.getWorkerDeploymentVersion(defaultVersionID)
+		targetVersion, _  = versions.getWorkerDeploymentVersion(desiredVersionID)
 	)
 
 	// Ugly hack to clear ramp percentages (not quite correctly) for now
@@ -469,16 +406,18 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	}
 	if defaultVersion != nil {
 		defaultVersion.RampPercentage = nil
-		if defaultVersion.BuildID == targetVersion.BuildID {
+		if defaultVersion.VersionID == targetVersion.VersionID {
 			targetVersion.RampPercentage = nil
 		}
 	}
 
 	return &temporaliov1alpha1.TemporalWorkerStatus{
-		DefaultVersion:       defaultVersion,
-		TargetVersion:        targetVersion,
-		DeprecatedVersions:   deprecatedVersions,
-		VersionConflictToken: []byte("todo"),
+		DefaultVersion:                defaultVersion,
+		TargetVersion:                 targetVersion,
+		TargetVersionRampPercentage:   rampPercentage,
+		TargetVersionRampingSinceTime: rampingSinceTime,
+		DeprecatedVersions:            deprecatedVersions,
+		VersionConflictToken:          []byte("todo"),
 	}, nil
 }
 

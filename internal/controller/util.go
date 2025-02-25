@@ -15,28 +15,37 @@ import (
 	"github.com/DataDog/temporal-worker-controller/internal/controller/k8s.io/utils"
 )
 
-func findHighestPriorityStatus(statuses []temporaliov1alpha1.ReachabilityStatus) temporaliov1alpha1.ReachabilityStatus {
+func findHighestPriorityStatus(statuses []temporaliov1alpha1.VersionStatus) temporaliov1alpha1.VersionStatus {
 	if len(statuses) == 0 {
 		return ""
 	}
-	slices.SortFunc(statuses, func(a, b temporaliov1alpha1.ReachabilityStatus) int {
+	slices.SortFunc(statuses, func(a, b temporaliov1alpha1.VersionStatus) int {
 		return getStatusPriority(a) - getStatusPriority(b)
 	})
 	return statuses[len(statuses)-1]
 }
 
-func getStatusPriority(s temporaliov1alpha1.ReachabilityStatus) int {
+func getStatusPriority(s temporaliov1alpha1.VersionStatus) int {
 	switch s {
-	case temporaliov1alpha1.ReachabilityStatusReachable:
+	// TODO(carlydf): categorize current and ramping correctly
+	case temporaliov1alpha1.VersionStatusCurrent:
+		return 6
+	case temporaliov1alpha1.VersionStatusRamping:
+		return 5
+	case temporaliov1alpha1.VersionStatusInactive:
 		return 4
-	case temporaliov1alpha1.ReachabilityStatusClosedOnly:
+	case temporaliov1alpha1.VersionStatusDraining:
 		return 3
-	case temporaliov1alpha1.ReachabilityStatusUnreachable:
+	case temporaliov1alpha1.VersionStatusDrained:
 		return 2
-	case temporaliov1alpha1.ReachabilityStatusNotRegistered:
+	case temporaliov1alpha1.VersionStatusNotRegistered:
 		return 1
 	}
 	return 0
+}
+
+func computeVersionID(spec *temporaliov1alpha1.TemporalWorkerSpec) string {
+	return spec.WorkerOptions.DeploymentName + "." + computeBuildID(spec)
 }
 
 func computeBuildID(spec *temporaliov1alpha1.TemporalWorkerSpec) string {
