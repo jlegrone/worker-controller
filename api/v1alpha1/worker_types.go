@@ -100,7 +100,7 @@ const (
 	VersionStatusDrained VersionStatus = "Drained"
 )
 
-// TemporalWorkerStatus defines the observed state of TemporalWorker // TODO(carlydf): it may make sense to call this TemporalWorkerDeploymentStatus but leaving as is for now
+// TemporalWorkerStatus defines the observed state of TemporalWorker
 type TemporalWorkerStatus struct {
 	// Remember, status should be able to be reconstituted from the state of the world,
 	// so it’s generally not a good idea to read from the status of the root object.
@@ -118,7 +118,7 @@ type TemporalWorkerStatus struct {
 	TargetVersionRampingSinceTime *metav1.Time `json:"targetVersionRampingSinceTime"`
 
 	// DefaultVersion is the version that is currently registered with
-	// Temporal as the current version of its worker deployment. This must never be nil. // TODO(carlydf): maybe this can be nil if __unversioned__ is current?
+	// Temporal as the current version of its worker deployment. This must never be nil.
 	//
 	// RampPercentage should always be nil for this version.
 	DefaultVersion *WorkerDeploymentVersion `json:"defaultVersion"`

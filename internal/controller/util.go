@@ -27,7 +27,7 @@ func findHighestPriorityStatus(statuses []temporaliov1alpha1.VersionStatus) temp
 
 func getStatusPriority(s temporaliov1alpha1.VersionStatus) int {
 	switch s {
-	// TODO(carlydf): categorize current and ramping correctly
+	// TODO(carlydf): Categorize current and ramping priorities correctly
 	case temporaliov1alpha1.VersionStatusCurrent:
 		return 6
 	case temporaliov1alpha1.VersionStatusRamping:

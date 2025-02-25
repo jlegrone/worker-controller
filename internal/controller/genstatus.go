@@ -84,7 +84,7 @@ func (c *deploymentVersionCollection) getWorkerDeploymentVersion(versionID strin
 	}
 
 	// Set ramp percentage
-	// TODO(carlydf): API now supports ramps in [0,100]
+	// TODO(carlydf): Support setting any ramp in [0,100]
 	if ramp, ok := c.rampPercentages[versionID]; ok && ramp != 100 {
 		result.RampPercentage = &ramp
 	}
@@ -109,7 +109,7 @@ func (c *deploymentVersionCollection) getWorkerDeploymentVersion(versionID strin
 		result.TestWorkflows = testWorkflows
 	}
 
-	// TODO(carlydf): support multiple task queues per worker deployment
+	// TODO(carlydf): Support multiple task queues per worker deployment
 	for _, tq := range c.taskQueues[versionID] {
 		result.TaskQueues = append(result.TaskQueues, temporaliov1alpha1.TaskQueue{
 			Name: tq,
@@ -250,7 +250,7 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	})
 	// Track each worker deployment version by version ID
 	for _, childDeploy := range childDeploys.Items {
-		// TODO(carlydf): decide whether this should still be a build ID label vs a version ID
+		// TODO(carlydf): Decide whether this should still be a build ID label vs a version ID
 		if buildID, ok := childDeploy.GetLabels()[buildIDLabel]; ok {
 			versionID := workerDeploymentName + "." + buildID
 			versions.addDeployment(versionID, &childDeploy)

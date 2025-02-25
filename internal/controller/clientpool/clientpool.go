@@ -36,7 +36,7 @@ func New(l log.Logger, c runtimeclient.Client) *ClientPool {
 	}
 }
 
-// TODO(carlydf): replace with sdk client (scoped by ns). One controller could need to manage workers for multiple temporal namespaces and/or clusters (self-hosted)
+// TODO(carlydf): Replace with sdk client (scoped by ns). One controller could need to manage workers for multiple temporal namespaces and/or clusters (self-hosted)
 func (cp *ClientPool) GetWorkflowServiceClient(hostPort string) (workflowservice.WorkflowServiceClient, bool) {
 	cp.mux.RLock()
 	defer cp.mux.RUnlock()

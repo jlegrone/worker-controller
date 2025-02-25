@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	// TODO(carlydf): make this configurable by the user
+	// TODO(carlydf): Make this configurable by the user
 	defaultScaleToZeroWaitTime = 1 * time.Minute
 	defaultDeleteWaitTime      = 1 * time.Hour
 )
@@ -104,7 +104,7 @@ func (r *TemporalWorkerReconciler) generatePlan(
 			return nil, err
 		}
 		// TODO(jlegrone): Compute scale based on load? Or percentage of replicas?
-		// TODO(carlydf): Consolidate scale up cases and verify that scale up is correct for inactive versions
+		// TODO(carlydf): Consolidate scale up cases and verify that scale up is the correct action for inactive versions
 		switch version.Status {
 		case temporaliov1alpha1.VersionStatusInactive:
 			// Scale up inactive deployments because they may be needed for canary tests

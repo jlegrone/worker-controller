@@ -113,7 +113,7 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 			}); err != nil { // would be cool to do this atomically with the update
 				return fmt.Errorf("unable to update metadata after setting current deployment: %w", err)
 			}
-		} else if ramp := vcfg.rampPercentage; ramp > 0 { // TODO(carlydf): support setting any ramp in [0,100]
+		} else if ramp := vcfg.rampPercentage; ramp > 0 { // TODO(carlydf): Support setting any ramp in [0,100]
 			// Apply ramp
 			l.Info("applying ramp", "version", p.UpdateVersionConfig.versionID, "percentage", p.UpdateVersionConfig.rampPercentage)
 			resp, err := temporalClient.DescribeWorkerDeployment(ctx, &workflowservice.DescribeWorkerDeploymentRequest{

@@ -79,7 +79,7 @@ func newTestWorkerDeploymentVersion(status temporaliov1alpha1.VersionStatus, dep
 	return &result
 }
 
-// TODO(carlydf): make these tests align with VersionStatus instead of reachability
+// TODO(carlydf): Make these tests align with VersionStatus instead of reachability
 func TestGeneratePlan(t *testing.T) {
 	type testCase struct {
 		observedState *temporaliov1alpha1.TemporalWorkerStatus
