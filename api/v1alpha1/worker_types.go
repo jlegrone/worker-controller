@@ -97,6 +97,7 @@ const (
 
 	// VersionStatusDrained indicates that the version has stopped accepting new workflows
 	// (is no longer ramping or current) and does NOT have open workflows pinned to it.
+	// This version MAY still receive query tasks associated with closed workflows.
 	VersionStatusDrained VersionStatus = "Drained"
 )
 
