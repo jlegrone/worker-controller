@@ -3783,6 +3783,9 @@ spec:
                     type: string
                   rampPercentage:
                     type: number
+                  rampingSince:
+                    format: date-time
+                    type: string
                   status:
                     type: string
                   taskQueues:
@@ -3815,7 +3818,6 @@ spec:
                   versionID:
                     type: string
                 required:
-                - drainedSince
                 - status
                 - versionID
                 type: object
@@ -3850,6 +3852,9 @@ spec:
                       type: string
                     rampPercentage:
                       type: number
+                    rampingSince:
+                      format: date-time
+                      type: string
                     status:
                       type: string
                     taskQueues:
@@ -3882,7 +3887,6 @@ spec:
                     versionID:
                       type: string
                   required:
-                  - drainedSince
                   - status
                   - versionID
                   type: object
@@ -3917,6 +3921,9 @@ spec:
                     type: string
                   rampPercentage:
                     type: number
+                  rampingSince:
+                    format: date-time
+                    type: string
                   status:
                     type: string
                   taskQueues:
@@ -3949,23 +3956,15 @@ spec:
                   versionID:
                     type: string
                 required:
-                - drainedSince
                 - status
                 - versionID
                 type: object
-              targetVersionRampPercentage:
-                type: number
-              targetVersionRampingSinceTime:
-                format: date-time
-                type: string
               versionConflictToken:
                 format: byte
                 type: string
             required:
             - defaultVersion
             - targetVersion
-            - targetVersionRampPercentage
-            - targetVersionRampingSinceTime
             - versionConflictToken
             type: object
         type: object

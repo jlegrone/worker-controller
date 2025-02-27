@@ -111,12 +111,6 @@ type TemporalWorkerStatus struct {
 	// wait for it to become healthy and then move it to the DefaultVersion.
 	TargetVersion *WorkerDeploymentVersion `json:"targetVersion"`
 
-	// TargetVersionRampPercentage is the ramp percentage of the target version.
-	TargetVersionRampPercentage float32 `json:"targetVersionRampPercentage"`
-
-	// TargetVersionRampingSinceTime is time when the target version first started ramping.
-	TargetVersionRampingSinceTime *metav1.Time `json:"targetVersionRampingSinceTime"`
-
 	// DefaultVersion is the version that is currently registered with
 	// Temporal as the current version of its worker deployment. This must never be nil.
 	//
@@ -186,7 +180,12 @@ type WorkerDeploymentVersion struct {
 
 	// DrainedSince is the time at which the version
 	// became drained.
+	// +optional
 	DrainedSince *metav1.Time `json:"drainedSince"`
+
+	// RampingSince is time when the version first started ramping.
+	// +optional
+	RampingSince *metav1.Time `json:"rampingSince"`
 
 	// A pointer to the version's managed k8s deployment.
 	// +optional

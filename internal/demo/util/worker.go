@@ -26,15 +26,13 @@ func NewVersionedWorker(opts worker.Options) (w worker.Worker, stopFunc func()) 
 		}
 	}()
 
-	// TODO(carlydf): Update worker options when new sdk available
-	opts.BuildID = mustGetEnv("WORKER_BUILD_ID")
-	opts.UseBuildIDForVersioning = true
 	opts.DeploymentOptions = worker.DeploymentOptions{
-		DeploymentSeriesName:      mustGetEnv("TEMPORAL_DEPLOYMENT_NAME"),
+		UseVersioning:             true,
+		Version:                   mustGetEnv("TEMPORAL_DEPLOYMENT_NAME") + "." + mustGetEnv("WORKER_BUILD_ID"),
 		DefaultVersioningBehavior: workflow.VersioningBehaviorPinned,
 	}
 
-	c, stopClient := NewClient(opts.BuildID)
+	c, stopClient := NewClient(mustGetEnv("WORKER_BUILD_ID"))
 
 	w = worker.New(c, temporalTaskQueue, opts)
 

@@ -6,7 +6,9 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"go.temporal.io/api/serviceerror"
 	"math"
 	"sort"
 	"strings"
@@ -221,6 +223,7 @@ func newDeploymentVersionCollection() deploymentVersionCollection {
 		rampPercentages:         make(map[string]float32),
 		stats:                   make(map[string]temporaliov1alpha1.QueueStatistics),
 		versionStatus:           make(map[string]temporaliov1alpha1.VersionStatus),
+		drainedSince:            make(map[string]*metav1.Time),
 		testWorkflowStatus:      make(map[string][]temporaliov1alpha1.WorkflowExecution),
 		taskQueues:              make(map[string][]string),
 	}
@@ -261,23 +264,20 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	}
 
 	// List deployment versions in Temporal
-	describeResp, err := temporalClient.DescribeWorkerDeployment(ctx, &workflowservice.DescribeWorkerDeploymentRequest{
+	describeResp, err := describeWorkerDeploymentHandleNotFound(ctx, temporalClient, &workflowservice.DescribeWorkerDeploymentRequest{
 		Namespace:      workerDeploy.Spec.WorkerOptions.TemporalNamespace,
 		DeploymentName: workerDeploymentName,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("unable to describe worker deployment: %w", err)
+		return nil, fmt.Errorf("unable to describe worker deployment %s: %w", workerDeploymentName, err)
 	}
 	workerDeploymentInfo := describeResp.GetWorkerDeploymentInfo()
 	routingConfig := workerDeploymentInfo.GetRoutingConfig()
 
 	// Check if the worker deployment was modified out of band of the controller (eg. via the Temporal CLI)
-	if workerDeploymentInfo.GetLastModifierIdentity() != "temporal-worker-controller" {
+	if workerDeploymentInfo.GetLastModifierIdentity() != "temporal-worker-controller" &&
+		workerDeploymentInfo.GetLastModifierIdentity() != "" {
 		// TODO(jlegrone): if it was set by another client, switch to manual mode
-	}
-
-	if len(workerDeploymentInfo.GetVersionSummaries()) == 0 {
-		l.Error(fmt.Errorf("no deployment versions found"), "no deployment versions found")
 	}
 
 	var rampingSinceTime *metav1.Time
@@ -308,7 +308,6 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 				return nil, fmt.Errorf("unable to describe version for version %q: %w", version, err)
 			}
 			drainedSinceTime := versionResp.GetWorkerDeploymentVersionInfo().GetDrainageInfo().GetLastChangedTime()
-			l.Info(fmt.Sprintf("version %s has been drained since %s", version.GetVersion(), drainedSinceTime.String()))
 			versions.addDrainedSince(version.GetVersion(), drainedSinceTime.AsTime())
 		} else {
 			versionStatus = temporaliov1alpha1.VersionStatusInactive
@@ -316,9 +315,8 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 		versions.addVersionStatus(version.GetVersion(), versionStatus)
 	}
 
-	// Check the status of the test workflow for the next version, if one is in progress.
-	if desiredVersionID != routingConfig.GetCurrentVersion() && desiredVersionID != routingConfig.GetRampingVersion() {
-
+	// Check the status of the test workflow for the next version, if rollout is still happening.
+	if desiredVersionID != routingConfig.GetCurrentVersion() {
 		// Describe the desired version to get task queue information
 		// Temporal will error if any task queue in the existing current version is not present in the new current version.
 		// Temporal will also error if any task queue in the existing current version is not present in the new ramping version.
@@ -326,7 +324,9 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 			Namespace: workerDeploy.Spec.WorkerOptions.TemporalNamespace,
 			Version:   desiredVersionID,
 		})
-		if err != nil {
+		var notFound *serviceerror.NotFound
+		if err != nil && !errors.As(err, &notFound) {
+			// Ignore NotFound error, because if the version is not found, we know there are no test workflows running on it.
 			return nil, fmt.Errorf("unable to describe worker deployment version for version %q: %w", desiredVersionID, err)
 		}
 		for _, tq := range versionResp.GetWorkerDeploymentVersionInfo().GetTaskQueueInfos() {
@@ -410,14 +410,16 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 			targetVersion.RampPercentage = nil
 		}
 	}
+	if targetVersion != nil {
+		targetVersion.RampPercentage = &rampPercentage
+		targetVersion.RampingSince = rampingSinceTime
+	}
 
 	return &temporaliov1alpha1.TemporalWorkerStatus{
-		DefaultVersion:                defaultVersion,
-		TargetVersion:                 targetVersion,
-		TargetVersionRampPercentage:   rampPercentage,
-		TargetVersionRampingSinceTime: rampingSinceTime,
-		DeprecatedVersions:            deprecatedVersions,
-		VersionConflictToken:          []byte("todo"),
+		DefaultVersion:       defaultVersion,
+		TargetVersion:        targetVersion,
+		DeprecatedVersions:   deprecatedVersions,
+		VersionConflictToken: []byte("todo"),
 	}, nil
 }
 

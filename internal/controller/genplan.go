@@ -7,6 +7,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"github.com/go-logr/logr"
+	"strings"
 	"time"
 
 	"go.temporal.io/api/taskqueue/v1"
@@ -38,7 +40,7 @@ type plan struct {
 	DeleteDeployments []*appsv1.Deployment
 	CreateDeployment  *appsv1.Deployment
 	ScaleDeployments  map[*v1.ObjectReference]uint32
-	// Register a new build ID as the default or with ramp
+	// Register a new version as the default or with ramp
 	UpdateVersionConfig *versionConfig
 
 	// Start a workflow
@@ -68,6 +70,7 @@ type startWorkflowConfig struct {
 
 func (r *TemporalWorkerReconciler) generatePlan(
 	ctx context.Context,
+	l logr.Logger,
 	w *temporaliov1alpha1.TemporalWorker,
 	connection temporaliov1alpha1.TemporalConnectionSpec,
 ) (*plan, error) {
@@ -134,8 +137,13 @@ func (r *TemporalWorkerReconciler) generatePlan(
 				}
 			}
 		case temporaliov1alpha1.VersionStatusNotRegistered:
-			// Delete unregistered deployments
-			plan.DeleteDeployments = append(plan.DeleteDeployments, d)
+			//// Delete unregistered deployments
+			//plan.DeleteDeployments = append(plan.DeleteDeployments, d)
+
+			// Scale up unregistered deployments
+			if d.Spec.Replicas != nil && *d.Spec.Replicas != *w.Spec.Replicas {
+				plan.ScaleDeployments[version.Deployment] = uint32(*w.Spec.Replicas)
+			}
 		}
 	}
 
@@ -143,8 +151,10 @@ func (r *TemporalWorkerReconciler) generatePlan(
 
 	if targetVersion := w.Status.TargetVersion; targetVersion != nil {
 		if targetVersion.Deployment == nil {
+
 			// Create new deployment from current pod template when it doesn't exist
-			d, err := r.newDeployment(w, desiredVersionID, connection)
+			_, buildID, _ := strings.Cut(desiredVersionID, ".") // TODO(carlydf): Stop converting between build id and version
+			d, err := r.newDeployment(w, buildID, connection)
 			if err != nil {
 				return nil, err
 			}
@@ -188,7 +198,7 @@ func (r *TemporalWorkerReconciler) generatePlan(
 				}
 
 				// Update version configuration
-				plan.UpdateVersionConfig = getVersionConfigDiff(w.Spec.RolloutStrategy, &w.Status)
+				plan.UpdateVersionConfig = getVersionConfigDiff(l, w.Spec.RolloutStrategy, &w.Status)
 				if plan.UpdateVersionConfig != nil {
 					plan.UpdateVersionConfig.conflictToken = w.Status.VersionConflictToken
 				}
@@ -210,8 +220,8 @@ func getOldestBuildIDCreateTime(rules *workflowservice.GetWorkerVersioningRulesR
 	return rule.GetCreateTime()
 }
 
-func getVersionConfigDiff(strategy temporaliov1alpha1.RolloutStrategy, status *temporaliov1alpha1.TemporalWorkerStatus) *versionConfig {
-	vcfg := getVersionConfig(strategy, status)
+func getVersionConfigDiff(l logr.Logger, strategy temporaliov1alpha1.RolloutStrategy, status *temporaliov1alpha1.TemporalWorkerStatus) *versionConfig {
+	vcfg := getVersionConfig(l, strategy, status)
 	if vcfg == nil {
 		return nil
 	}
@@ -225,22 +235,21 @@ func getVersionConfigDiff(strategy temporaliov1alpha1.RolloutStrategy, status *t
 	}
 
 	// Don't make updates if desired default is already the default
-	if vcfg.setDefault &&
-		vcfg.versionID == status.DefaultVersion.VersionID {
+	if vcfg.versionID == status.DefaultVersion.VersionID {
 		return nil
 	}
 
 	// Don't make updates if desired ramping version is already the target, and ramp percentage is correct
 	if !vcfg.setDefault &&
 		vcfg.versionID == status.TargetVersion.VersionID &&
-		vcfg.rampPercentage == status.TargetVersionRampPercentage {
+		vcfg.rampPercentage == *status.TargetVersion.RampPercentage {
 		return nil
 	}
 
 	return vcfg
 }
 
-func getVersionConfig(strategy temporaliov1alpha1.RolloutStrategy, status *temporaliov1alpha1.TemporalWorkerStatus) *versionConfig {
+func getVersionConfig(l logr.Logger, strategy temporaliov1alpha1.RolloutStrategy, status *temporaliov1alpha1.TemporalWorkerStatus) *versionConfig {
 	// Do nothing if target version's deployment is not healthy yet
 	if status == nil || status.TargetVersion.HealthySince == nil {
 		return nil
@@ -276,11 +285,14 @@ func getVersionConfig(strategy temporaliov1alpha1.RolloutStrategy, status *tempo
 			currentRamp        float32
 			totalPauseDuration = healthyDuration
 		)
-		if status.TargetVersionRampingSinceTime != nil {
-			healthyDuration = time.Since(status.TargetVersionRampingSinceTime.Time)
+		if status.TargetVersion.RampingSince != nil {
+			healthyDuration = time.Since(status.TargetVersion.RampingSince.Time)
+			// TODO(carlydf): Is it important that the version spends x time at each step % ?
+			// Currently, if 1% ramp is set, and then multiple reconcile loops error so the next steps aren't set,
+			// the version could skip straight from 1% to current if the error-ing period > totalPauseDuration
 		}
 		for _, s := range strategy.Steps {
-			if s.RampPercentage != 0 {
+			if s.RampPercentage != 0 { // TODO(carlydf): Support 0% ramp
 				currentRamp = s.RampPercentage
 			}
 			totalPauseDuration += s.PauseDuration.Duration

@@ -6,6 +6,7 @@ package controller
 
 import (
 	"context"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -163,7 +164,7 @@ func TestGeneratePlan(t *testing.T) {
 
 	for name, tc := range testCases {
 		t.Run(name, func(t *testing.T) {
-			actualPlan, err := r.generatePlan(context.Background(), &temporaliov1alpha1.TemporalWorker{
+			actualPlan, err := r.generatePlan(context.Background(), log.FromContext(context.Background()), &temporaliov1alpha1.TemporalWorker{
 				TypeMeta:   metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{},
 				Spec:       *tc.desiredState,

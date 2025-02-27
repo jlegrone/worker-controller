@@ -23,7 +23,7 @@ import (
 )
 
 func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logger, temporalClient workflowservice.WorkflowServiceClient, p *plan) error {
-	// Create deployment
+	// Create deployment // TODO(carlydf): after this, the WorkerDeployment should exist, so the set-ramp and other things _should_ work?
 	if p.CreateDeployment != nil {
 		l.Info("creating deployment", "deployment", p.CreateDeployment)
 		if err := r.Create(ctx, p.CreateDeployment); err != nil {
@@ -58,7 +58,11 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 	}
 
 	for _, wf := range p.startTestWorkflows {
-		if _, err := temporalClient.StartWorkflowExecution(ctx, &workflowservice.StartWorkflowExecutionRequest{
+		err := awaitVersionRegistration(ctx, temporalClient, p.TemporalNamespace, wf.versionID)
+		if err != nil {
+			return fmt.Errorf("error waiting for version to register, did your pollers start successfully?: %w", err)
+		}
+		if _, err = temporalClient.StartWorkflowExecution(ctx, &workflowservice.StartWorkflowExecutionRequest{
 			Namespace:  p.TemporalNamespace,
 			WorkflowId: wf.workflowID,
 			WorkflowType: &common.WorkflowType{
@@ -85,6 +89,11 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 	// Register default version or ramp
 	if vcfg := p.UpdateVersionConfig; vcfg != nil {
 		if vcfg.setDefault {
+			err := awaitVersionRegistration(ctx, temporalClient, p.TemporalNamespace, vcfg.versionID)
+			if err != nil {
+				return fmt.Errorf("error waiting for version to register, did your pollers start successfully?: %w", err)
+			}
+
 			l.Info("registering new default version", "version", vcfg.versionID)
 			resp, err := temporalClient.DescribeWorkerDeployment(ctx, &workflowservice.DescribeWorkerDeploymentRequest{
 				Namespace:      p.TemporalNamespace,
@@ -114,7 +123,11 @@ func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logge
 				return fmt.Errorf("unable to update metadata after setting current deployment: %w", err)
 			}
 		} else if ramp := vcfg.rampPercentage; ramp > 0 { // TODO(carlydf): Support setting any ramp in [0,100]
-			// Apply ramp
+			err := awaitVersionRegistration(ctx, temporalClient, p.TemporalNamespace, vcfg.versionID)
+			if err != nil {
+				return fmt.Errorf("error waiting for version to register, did your pollers start successfully?: %w", err)
+			}
+
 			l.Info("applying ramp", "version", p.UpdateVersionConfig.versionID, "percentage", p.UpdateVersionConfig.rampPercentage)
 			resp, err := temporalClient.DescribeWorkerDeployment(ctx, &workflowservice.DescribeWorkerDeploymentRequest{
 				Namespace:      p.TemporalNamespace,

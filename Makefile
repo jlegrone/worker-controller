@@ -56,9 +56,10 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 .PHONY: start-sample-workflow
 start-sample-workflow: ## Start a sample workflow.
 	@$(TEMPORAL) workflow start --type "hello_world" --task-queue "hello_world" \
-      --tls-cert-path certs/ca.pem \
-      --tls-key-path certs/ca.key \
-      --address replay-2025.ktasd.tmprl.cloud:7233 \
+#      --tls-cert-path certs/ca.pem \
+#      --tls-key-path certs/ca.key \
+#      --address replay-2025.ktasd.tmprl.cloud:7233 \
+      --address "worker-controller-test.a2dd6.tmprl.cloud:7233" \
       --api-key $(TEMPORAL_CLOUD_API_KEY)
 
 .PHONY: apply-load-sample-workflow
@@ -83,10 +84,7 @@ deploy-sample-worker: build-sample-worker ## Deploy the sample worker to the clu
 .PHONY: start-temporal-server
 start-temporal-server: ## Start an ephemeral Temporal server with versioning APIs enabled.
 	$(TEMPORAL) server start-dev --ip 0.0.0.0 \
-		--dynamic-config-value frontend.workerVersioningRuleAPIs=true \
 		--dynamic-config-value frontend.workerVersioningWorkflowAPIs=true \
-		--dynamic-config-value frontend.workerVersioningDataAPIs=true \
-		--dynamic-config-value system.enableDeployments=true \
 		--dynamic-config-value system.enableDeploymentVersions=true
 #		--dynamic-config-value worker.buildIdScavengerEnabled=true \
 #		--dynamic-config-value worker.removableBuildIdDurationSinceDefault=0.001 \

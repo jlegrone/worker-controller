@@ -316,10 +316,6 @@ func (in *TemporalWorkerStatus) DeepCopyInto(out *TemporalWorkerStatus) {
 		*out = new(WorkerDeploymentVersion)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.TargetVersionRampingSinceTime != nil {
-		in, out := &in.TargetVersionRampingSinceTime, &out.TargetVersionRampingSinceTime
-		*out = (*in).DeepCopy()
-	}
 	if in.DefaultVersion != nil {
 		in, out := &in.DefaultVersion, &out.DefaultVersion
 		*out = new(WorkerDeploymentVersion)
@@ -367,6 +363,10 @@ func (in *WorkerDeploymentVersion) DeepCopyInto(out *WorkerDeploymentVersion) {
 	}
 	if in.DrainedSince != nil {
 		in, out := &in.DrainedSince, &out.DrainedSince
+		*out = (*in).DeepCopy()
+	}
+	if in.RampingSince != nil {
+		in, out := &in.RampingSince, &out.RampingSince
 		*out = (*in).DeepCopy()
 	}
 	if in.Deployment != nil {
