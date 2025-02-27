@@ -125,21 +125,21 @@ func (r *TemporalWorkerReconciler) generatePlan(
 				plan.ScaleDeployments[version.Deployment] = uint32(*w.Spec.Replicas)
 			}
 		case temporaliov1alpha1.VersionStatusDrained:
+			// Delete deployments that have been drained for long enough.
 			if time.Since(version.DrainedSince.Time) > defaultDeleteWaitTime {
 				plan.DeleteDeployments = append(plan.DeleteDeployments, d)
 			} else if time.Since(version.DrainedSince.Time) > defaultScaleToZeroWaitTime {
-				// Scale down drained deployments. We do this instead
+				// TODO(jlegrone): Compute scale based on load? Or percentage of replicas?
+				// Scale down more recently drained deployments. We do this instead
 				// of deleting them so that they can be scaled back up if
-				// their build ID is promoted to default again (i.e. during
+				// their version is promoted to default again (i.e. during
 				// a rollback).
 				if d.Spec.Replicas != nil && *d.Spec.Replicas != 0 {
 					plan.ScaleDeployments[version.Deployment] = 0
 				}
 			}
 		case temporaliov1alpha1.VersionStatusNotRegistered:
-			//// Delete unregistered deployments
-			//plan.DeleteDeployments = append(plan.DeleteDeployments, d)
-
+			// TODO(carlydf): Figure out why deleting unregistered deployments caused thrashing.
 			// Scale up unregistered deployments
 			if d.Spec.Replicas != nil && *d.Spec.Replicas != *w.Spec.Replicas {
 				plan.ScaleDeployments[version.Deployment] = uint32(*w.Spec.Replicas)

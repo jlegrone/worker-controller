@@ -23,7 +23,7 @@ import (
 )
 
 func (r *TemporalWorkerReconciler) executePlan(ctx context.Context, l logr.Logger, temporalClient workflowservice.WorkflowServiceClient, p *plan) error {
-	// Create deployment // TODO(carlydf): after this, the WorkerDeployment should exist, so the set-ramp and other things _should_ work?
+	// Create deployment
 	if p.CreateDeployment != nil {
 		l.Info("creating deployment", "deployment", p.CreateDeployment)
 		if err := r.Create(ctx, p.CreateDeployment); err != nil {

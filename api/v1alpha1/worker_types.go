@@ -23,7 +23,7 @@ type WorkerOptions struct {
 	// namespace.
 	//
 	// +optional
-	DeploymentName string `json:"name"`
+	DeploymentName string `json:"deploymentName"`
 }
 
 // TemporalWorkerSpec defines the desired state of TemporalWorker
