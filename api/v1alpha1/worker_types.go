@@ -107,7 +107,7 @@ type TemporalWorkerStatus struct {
 	// so it’s generally not a good idea to read from the status of the root object.
 	// Instead, you should reconstruct it every run.
 
-	// TargetVersion is the desired next version. If the version is nil,
+	// TargetVersion is the desired next version. If TargetVersion.Deployment is nil,
 	// then the controller should create it. If not nil, the controller should
 	// wait for it to become healthy and then move it to the DefaultVersion.
 	TargetVersion *WorkerDeploymentVersion `json:"targetVersion"`
