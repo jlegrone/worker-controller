@@ -15,18 +15,18 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - description: Default BuildID for new workflows
-      jsonPath: .status.defaultVersion.buildID
+    - description: Default Version for new workflows
+      jsonPath: .status.defaultVersion.versionID
       name: Default
       type: string
-    - description: BuildID of the current worker template
-      jsonPath: .status.targetVersion.buildID
+    - description: Version of the current worker template
+      jsonPath: .status.targetVersion.versionID
       name: Target
       type: string
-    - description: Percentage of new workflows starting on Target BuildID
+    - description: Percentage of new workflows starting on Target Version
       jsonPath: .status.targetVersion.rampPercentage
       name: Target-Ramp
-      type: integer
+      type: number
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -3738,7 +3738,7 @@ spec:
                 properties:
                   connection:
                     type: string
-                  name:
+                  deploymentName:
                     type: string
                   temporalNamespace:
                     type: string

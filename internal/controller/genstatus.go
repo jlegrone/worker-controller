@@ -251,7 +251,7 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	sort.SliceStable(childDeploys.Items, func(i, j int) bool {
 		return childDeploys.Items[i].ObjectMeta.CreationTimestamp.Before(&childDeploys.Items[j].ObjectMeta.CreationTimestamp)
 	})
-	// Track each worker deployment version by version ID
+	// Track each k8s deployment by version ID
 	for _, childDeploy := range childDeploys.Items {
 		// TODO(carlydf): Decide whether this should still be a build ID label vs a version ID
 		if buildID, ok := childDeploy.GetLabels()[buildIDLabel]; ok {
@@ -273,6 +273,7 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	}
 	workerDeploymentInfo := describeResp.GetWorkerDeploymentInfo()
 	routingConfig := workerDeploymentInfo.GetRoutingConfig()
+	defaultVersionID = routingConfig.GetCurrentVersion()
 
 	// Check if the worker deployment was modified out of band of the controller (eg. via the Temporal CLI)
 	if workerDeploymentInfo.GetLastModifierIdentity() != "temporal-worker-controller" &&
@@ -282,7 +283,7 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 
 	var rampingSinceTime *metav1.Time
 	var rampPercentage float32
-	// Set all the version statuses
+	// For each version the server has registered in the worker deployment, compute the status.
 	for _, version := range workerDeploymentInfo.GetVersionSummaries() {
 		drainageStatus := version.GetDrainageStatus()
 		var versionStatus temporaliov1alpha1.VersionStatus
@@ -384,7 +385,11 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	//	}
 	//}
 
-	// reconcile deployments that exist in k8s but not in temporal. (scaled to 0 so they're not polling)
+	// TODO(carlydf): make sure target version gets inactive status
+
+	// Reconcile deployments that exist in k8s without a corresponding version in temporal.
+	// Temporal has deleted these versions, which probably would have only happened if they
+	// stopped polling the server, so these are likely already scaled to zero.
 	var deprecatedVersions []*temporaliov1alpha1.WorkerDeploymentVersion
 	for _, version := range deployedVersions {
 		switch version {
