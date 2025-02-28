@@ -111,7 +111,6 @@ func (c *deploymentVersionCollection) getWorkerDeploymentVersion(versionID strin
 		result.TestWorkflows = testWorkflows
 	}
 
-	// TODO(carlydf): Support multiple task queues per worker deployment
 	for _, tq := range c.taskQueues[versionID] {
 		result.TaskQueues = append(result.TaskQueues, temporaliov1alpha1.TaskQueue{
 			Name: tq,
@@ -253,7 +252,6 @@ func (r *TemporalWorkerReconciler) generateStatus(ctx context.Context, l logr.Lo
 	})
 	// Track each k8s deployment by version ID
 	for _, childDeploy := range childDeploys.Items {
-		// TODO(carlydf): Decide whether this should still be a build ID label vs a version ID
 		if buildID, ok := childDeploy.GetLabels()[buildIDLabel]; ok {
 			versionID := workerDeploymentName + "." + buildID
 			versions.addDeployment(versionID, &childDeploy)

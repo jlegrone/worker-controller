@@ -11,9 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"go.temporal.io/api/taskqueue/v1"
-	"go.temporal.io/api/workflowservice/v1"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -139,10 +136,14 @@ func (r *TemporalWorkerReconciler) generatePlan(
 				}
 			}
 		case temporaliov1alpha1.VersionStatusNotRegistered:
-			// TODO(carlydf): Figure out why deleting unregistered deployments caused thrashing.
-			// Scale up unregistered deployments
-			if d.Spec.Replicas != nil && *d.Spec.Replicas != *w.Spec.Replicas {
-				plan.ScaleDeployments[version.Deployment] = uint32(*w.Spec.Replicas)
+			// NotRegistered versions are versions that the server doesn't know about,
+			// either because the poller hasn't arrived yet or because the version has
+			// been deleted because it's old and has no pollers.
+			// At the beginning of a rollout there might be a short window of time when
+			// the Deployment exists in k8s, but the target version has not been registered yet.
+			// This check prevents us from deleting that version's Deployment.
+			if version != w.Status.TargetVersion {
+				plan.DeleteDeployments = append(plan.DeleteDeployments, d)
 			}
 		}
 	}
@@ -151,9 +152,8 @@ func (r *TemporalWorkerReconciler) generatePlan(
 
 	if targetVersion := w.Status.TargetVersion; targetVersion != nil {
 		if targetVersion.Deployment == nil {
-
 			// Create new deployment from current pod template when it doesn't exist
-			_, buildID, _ := strings.Cut(desiredVersionID, ".") // TODO(carlydf): Stop converting between build id and version
+			_, buildID, _ := strings.Cut(desiredVersionID, ".")
 			d, err := r.newDeployment(w, buildID, connection)
 			if err != nil {
 				return nil, err
@@ -207,17 +207,6 @@ func (r *TemporalWorkerReconciler) generatePlan(
 	}
 
 	return &plan, nil
-}
-
-func getOldestBuildIDCreateTime(rules *workflowservice.GetWorkerVersioningRulesResponse, buildID string) *timestamppb.Timestamp {
-	var rule *taskqueue.TimestampedBuildIdAssignmentRule
-	for _, r := range rules.GetAssignmentRules() {
-		if r.GetRule().GetTargetBuildId() != buildID {
-			break
-		}
-		rule = r
-	}
-	return rule.GetCreateTime()
 }
 
 func getVersionConfigDiff(l logr.Logger, strategy temporaliov1alpha1.RolloutStrategy, status *temporaliov1alpha1.TemporalWorkerStatus) *versionConfig {
@@ -292,7 +281,7 @@ func getVersionConfig(l logr.Logger, strategy temporaliov1alpha1.RolloutStrategy
 			// the version could skip straight from 1% to current if the error-ing period > totalPauseDuration
 		}
 		for _, s := range strategy.Steps {
-			if s.RampPercentage != 0 { // TODO(carlydf): Support 0% ramp
+			if s.RampPercentage != 0 { // TODO(carlydf): Support setting any ramp in [0,100]
 				currentRamp = s.RampPercentage
 			}
 			totalPauseDuration += s.PauseDuration.Duration
