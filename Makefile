@@ -55,12 +55,13 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 # source secret.env && make start-sample-workflow TEMPORAL_CLOUD_API_KEY=$TEMPORAL_CLOUD_API_KEY
 .PHONY: start-sample-workflow
 start-sample-workflow: ## Start a sample workflow.
-	@$(TEMPORAL) workflow start --type "hello_world" --task-queue "hello_world" \
-#      --tls-cert-path certs/ca.pem \
-#      --tls-key-path certs/ca.key \
-#      --address replay-2025.ktasd.tmprl.cloud:7233 \
+	@$(TEMPORAL) workflow start --type "HelloWorld" --task-queue "hello_world" \
+      --tls-cert-path certs/ca.pem \
+      --tls-key-path certs/ca.key \
       --address "worker-controller-test.a2dd6.tmprl.cloud:7233" \
-      --api-key $(TEMPORAL_CLOUD_API_KEY)
+      -n "worker-controller-test.a2dd6"
+#      --address replay-2025.ktasd.tmprl.cloud:7233 \
+#      --api-key $(TEMPORAL_CLOUD_API_KEY)
 
 .PHONY: apply-load-sample-workflow
 apply-load-sample-workflow: ## Start a sample workflow every 15 seconds
