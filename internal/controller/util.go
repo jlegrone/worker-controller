@@ -20,6 +20,11 @@ import (
 	"github.com/DataDog/temporal-worker-controller/internal/controller/k8s.io/utils"
 )
 
+const (
+	defaultScaledownDelay = 1 * time.Hour
+	defaultDeleteDelay    = 24 * time.Hour
+)
+
 func computeVersionID(spec *temporaliov1alpha1.TemporalWorkerSpec) string {
 	return spec.WorkerOptions.DeploymentName + "." + computeBuildID(spec)
 }
@@ -30,6 +35,20 @@ func computeBuildID(spec *temporaliov1alpha1.TemporalWorkerSpec) string {
 
 func getTestWorkflowID(series, taskQueue, buildID string) string {
 	return fmt.Sprintf("test-deploy:%s:%s:%s", series, taskQueue, buildID)
+}
+
+func getScaledownDelay(spec *temporaliov1alpha1.TemporalWorkerSpec) time.Duration {
+	if spec.SunsetStrategy.ScaledownDelay == nil {
+		return defaultScaledownDelay
+	}
+	return spec.SunsetStrategy.ScaledownDelay.Duration
+}
+
+func getDeleteDelay(spec *temporaliov1alpha1.TemporalWorkerSpec) time.Duration {
+	if spec.SunsetStrategy.DeleteDelay == nil {
+		return defaultDeleteDelay
+	}
+	return spec.SunsetStrategy.DeleteDelay.Duration
 }
 
 func newObjectRef(d *appsv1.Deployment) *v1.ObjectReference {

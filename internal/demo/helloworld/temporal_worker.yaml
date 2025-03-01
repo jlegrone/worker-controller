@@ -28,6 +28,9 @@ spec:
         pauseDuration: 1m
     gate:
       workflowType: "HelloWorld"
+  sunset:
+    scaledownDelay: 30s
+    deleteDelay: 1m
   # Desired number of worker replicas
   replicas: 1
   # Desired specification for worker pods

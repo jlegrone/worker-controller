@@ -20,12 +20,6 @@ import (
 	temporaliov1alpha1 "github.com/DataDog/temporal-worker-controller/api/v1alpha1"
 )
 
-const (
-	// TODO(carlydf): Make this configurable by the user
-	defaultScaleToZeroWaitTime = 1 * time.Minute
-	defaultDeleteWaitTime      = 1 * time.Hour
-)
-
 type plan struct {
 	// Where to take actions
 
@@ -123,9 +117,9 @@ func (r *TemporalWorkerReconciler) generatePlan(
 			}
 		case temporaliov1alpha1.VersionStatusDrained:
 			// Delete deployments that have been drained for long enough.
-			if time.Since(version.DrainedSince.Time) > defaultDeleteWaitTime {
+			if time.Since(version.DrainedSince.Time) > getDeleteDelay(&w.Spec) {
 				plan.DeleteDeployments = append(plan.DeleteDeployments, d)
-			} else if time.Since(version.DrainedSince.Time) > defaultScaleToZeroWaitTime {
+			} else if time.Since(version.DrainedSince.Time) > getScaledownDelay(&w.Spec) {
 				// TODO(jlegrone): Compute scale based on load? Or percentage of replicas?
 				// Scale down more recently drained deployments. We do this instead
 				// of deleting them so that they can be scaled back up if

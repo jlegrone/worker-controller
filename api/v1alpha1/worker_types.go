@@ -60,8 +60,11 @@ type TemporalWorkerSpec struct {
 	// not be estimated during the time a deployment is paused. Defaults to 600s.
 	ProgressDeadlineSeconds *int32 `json:"progressDeadlineSeconds,omitempty" protobuf:"varint,9,opt,name=progressDeadlineSeconds"`
 
-	// How to cut over new workflow executions to the target worker version.
+	// How to cut over new workflow executions to the target version.
 	RolloutStrategy RolloutStrategy `json:"cutover"`
+
+	// How to manage sunsetting drained versions.
+	SunsetStrategy SunsetStrategy `json:"sunset"`
 
 	// TODO(jlegrone): add godoc
 	WorkerOptions WorkerOptions `json:"workerOptions"`
@@ -237,6 +240,19 @@ type RolloutStrategy struct {
 	// Steps to execute progressive rollouts. Only required when strategy is "Progressive".
 	// +optional
 	Steps []RolloutStep `json:"steps,omitempty" protobuf:"bytes,3,rep,name=steps"`
+}
+
+// SunsetStrategy defines strategy to apply when sunsetting k8s deployments of drained versions.
+type SunsetStrategy struct {
+	// ScaledownDelay specifies how long to wait after a version is drained before scaling its Deployment to zero.
+	// Defaults to 1 hour.
+	// +optional
+	ScaledownDelay *metav1.Duration `json:"scaledownDelay"`
+
+	// DeleteDelay specifies how long to wait after a version is drained before deleting its Deployment.
+	// Defaults to 24 hours.
+	// +optional
+	DeleteDelay *metav1.Duration `json:"deleteDelay"`
 }
 
 type AllAtOnceRolloutStrategy struct{}

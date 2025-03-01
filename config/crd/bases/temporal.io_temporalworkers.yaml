@@ -107,6 +107,13 @@ spec:
                     type: object
                 type: object
                 x-kubernetes-map-type: atomic
+              sunset:
+                properties:
+                  deleteDelay:
+                    type: string
+                  scaledownDelay:
+                    type: string
+                type: object
               template:
                 properties:
                   metadata:
@@ -3748,6 +3755,7 @@ spec:
                 type: object
             required:
             - cutover
+            - sunset
             - template
             - workerOptions
             type: object
