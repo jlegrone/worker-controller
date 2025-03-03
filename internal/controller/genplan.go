@@ -401,7 +401,7 @@ func newDeploymentWithoutOwnerRef(
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:                       fmt.Sprintf("%s-%s", objectMeta.Name, buildID),
+			Name:                       fmt.Sprintf("%s/%s", objectMeta.Name, buildID),
 			Namespace:                  objectMeta.Namespace,
 			DeletionGracePeriodSeconds: nil,
 			Labels:                     selectorLabels,
